@@ -1,4 +1,4 @@
-﻿const storageKey = "notas-academicas-v1";
+const storageKey = "notas-academicas-v1";
 const themeKey = "notas-theme";
 
 const els = {
@@ -30,6 +30,11 @@ const els = {
   modalMode: document.getElementById("modalMode"),
   modalColor: document.getElementById("modalColor"),
   deleteSubject: document.getElementById("deleteSubject"),
+  configOpen: document.getElementById("configOpen"),
+  configModal: document.getElementById("configModal"),
+  configClose: document.getElementById("configClose"),
+  exportData: document.getElementById("exportData"),
+  importFile: document.getElementById("importFile"),
   subjectAverage: document.getElementById("subjectAverage"),
   subjectNotes: document.getElementById("subjectNotes"),
   subjectWeight: document.getElementById("subjectWeight"),
@@ -210,6 +215,16 @@ function closeModal() {
   els.modal.setAttribute("aria-hidden", "true");
   activeSubjectId = null;
   resetNoteForm();
+}
+
+function openConfig() {
+  els.configModal.classList.add("is-open");
+  els.configModal.setAttribute("aria-hidden", "false");
+}
+
+function closeConfig() {
+  els.configModal.classList.remove("is-open");
+  els.configModal.setAttribute("aria-hidden", "true");
 }
 
 function renderSubjectDetails(subject) {
@@ -546,6 +561,46 @@ function handleThemeToggle() {
   setTheme(next);
 }
 
+function handleExport() {
+  const payload = JSON.stringify(subjects, null, 2);
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "lectum-data.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!Array.isArray(parsed)) {
+        throw new Error("Formato invalido");
+      }
+      subjects = parsed;
+      saveSubjects();
+      closeModal();
+      updateGroupFilter();
+      renderSubjects();
+      calculateOverall();
+      closeConfig();
+    } catch (err) {
+      alert("El archivo JSON no es valido.");
+    } finally {
+      els.importFile.value = "";
+    }
+  };
+  reader.readAsText(file);
+}
+
 els.subjectForm.addEventListener("submit", handleSubjectSubmit);
 els.noteForm.addEventListener("submit", handleNoteSubmit);
 els.addControl.addEventListener("click", handleAddControl);
@@ -563,6 +618,13 @@ els.groupFilter.addEventListener("change", () => {
   calculateOverall();
 });
 els.themeToggle.addEventListener("click", handleThemeToggle);
+els.configOpen.addEventListener("click", openConfig);
+els.configClose.addEventListener("click", closeConfig);
+els.configModal.addEventListener("click", (event) => {
+  if (event.target === els.configModal) closeConfig();
+});
+els.exportData.addEventListener("click", handleExport);
+els.importFile.addEventListener("change", handleImport);
 
 initTheme();
 updateGroupFilter();
