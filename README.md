@@ -67,7 +67,6 @@ No intenta reemplazar sistemas institucionales, sino **darle al estudiante contr
 Se planean mejoras en:
 
 * Visualizaciones (Más personalización)
-* Exportación de datos (JSON para casos de alternar/cambiar de dispositivo)
 * Optimización de UX
 
 ## 📄 Licencia
