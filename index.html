@@ -1,0 +1,241 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lectum</title>
+  <link rel="icon" href="img/minilogo.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="appRoot">
+    <header class="topbar">
+      <div class="brand">
+        <img class="logo" src="img/logo (2).png" alt="Logo">
+        <div>
+          <p class="eyebrow">Dashboard academico</p>
+          <h1>Lectum</h1>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="toggle" id="themeToggle" aria-label="Cambiar tema">
+          <span id="themeLabel">Modo oscuro</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <div class="left-column">
+        <section class="summary">
+          <div class="summary-head">
+            <div>
+              <p class="eyebrow">Promedio general</p>
+              <h3>Vista por grupo</h3>
+            </div>
+            <label class="summary-filter">
+              Grupo
+              <select id="groupFilter">
+                <option value="">Todos</option>
+              </select>
+            </label>
+          </div>
+          <article class="summary-card">
+            <p>Promedio general</p>
+            <h2 id="overallAverage">0.0</h2>
+            <span id="overallFoot">Sin materias aun</span>
+          </article>
+          <article class="summary-card">
+            <p>Materias activas</p>
+            <h2 id="overallSubjects">0</h2>
+            <span id="overallSubjectsFoot">0 materias</span>
+          </article>
+          <article class="summary-card">
+            <p>Notas registradas</p>
+            <h2 id="overallNotes">0</h2>
+            <span id="overallNotesFoot">0 notas totales</span>
+          </article>
+          <article class="summary-card">
+            <p>Promedio mas bajo</p>
+            <h2 id="overallLowest">0.0</h2>
+            <span id="overallLowestFoot">Sin materias aun</span>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Materias</h3>
+              <p>Selecciona una materia para ver su detalle y calcular sus notas.</p>
+            </div>
+          </div>
+          <div id="subjectsGrid" class="subjects-grid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Pruebas pendientes</h3>
+              <p>Notas programadas o futuras del grupo seleccionado.</p>
+            </div>
+          </div>
+          <div id="pendingList" class="pending-list"></div>
+        </section>
+      </div>
+
+      <aside class="right-column">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Agregar materia</h3>
+              <p>Define el curso y el modo de calculo de notas.</p>
+            </div>
+          </div>
+          <form id="subjectForm" class="subject-form">
+            <label>
+              Nombre de la materia
+              <input type="text" id="subjectName" placeholder="Calculo I" required>
+            </label>
+            <label>
+              Docente (opcional)
+              <input type="text" id="subjectTeacher" placeholder="Profe Ramirez">
+            </label>
+            <label>
+              Grupo / semestre
+              <input type="text" id="subjectGroup" placeholder="2026-I">
+            </label>
+            <label>
+              Color de la materia
+              <input type="color" id="subjectColor" value="#1f4c7a">
+            </label>
+            <label>
+              Modo de calculo
+              <select id="subjectMode" required>
+                <option value="percent">Porcentaje</option>
+                <option value="average">Promedio</option>
+                <option value="geometric">Geometrica</option>
+              </select>
+            </label>
+            <button class="primary" type="submit">Crear materia</button>
+          </form>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="subjectModal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose" aria-label="Cerrar">×</button>
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow" id="modalEyebrow">Materia</p>
+          <h2 id="modalTitle">-</h2>
+          <p class="muted" id="modalTeacher">-</p>
+        </div>
+        <div class="mode-select">
+          <label for="modalMode">Modo de calculo</label>
+          <select id="modalMode">
+            <option value="percent">Porcentaje</option>
+            <option value="average">Promedio</option>
+            <option value="geometric">Geometrica</option>
+          </select>
+        </div>
+        <div class="mode-select">
+          <label for="modalColor">Color</label>
+          <input type="color" id="modalColor" value="#1f4c7a">
+        </div>
+        <button class="ghost danger" type="button" id="deleteSubject">Eliminar materia</button>
+      </div>
+
+      <div class="modal-summary">
+        <div>
+          <p>Promedio materia</p>
+          <h3 id="subjectAverage">0.0</h3>
+        </div>
+        <div>
+          <p>Total notas</p>
+          <h3 id="subjectNotes">0</h3>
+        </div>
+        <div id="weightBox">
+          <p>Porcentaje acumulado</p>
+          <h3 id="subjectWeight">0%</h3>
+        </div>
+      </div>
+      <div id="weightAlert" class="alert is-hidden"></div>
+
+      <div class="notes">
+        <div class="panel-head">
+          <div>
+            <h3>Notas de la materia</h3>
+            <p>Agrega notas solidas o notas control derivadas de otras notas.</p>
+          </div>
+        </div>
+        <div id="notesList" class="notes-list"></div>
+      </div>
+
+      <form id="noteForm" class="note-form">
+        <div class="row">
+          <label>
+            Nombre de la nota
+            <input type="text" id="noteTitle" placeholder="Parcial 1" required>
+          </label>
+          <label>
+            Tipo de nota
+            <select id="noteType" required>
+              <option value="solid">Nota solida</option>
+              <option value="control">Nota control</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row" id="solidRow">
+          <label>
+            Nota
+            <input type="number" id="noteScore" min="0" max="20" step="0.1">
+          </label>
+          <label id="weightLabel">
+            Porcentaje (%)
+            <input type="number" id="noteWeight" min="0" max="100" step="0.1" value="0">
+          </label>
+        </div>
+        <div class="row">
+          <label>
+            Fecha
+            <input type="date" id="noteDate">
+          </label>
+          <label class="checkline">
+            <input type="checkbox" id="noteScheduled">
+            Programar (pendiente)
+          </label>
+        </div>
+
+        <div class="control-box" id="controlBox">
+          <div class="control-head">
+            <p class="control-title">Componentes de la nota control</p>
+            <span class="tooltip" data-tooltip="Nota control: se calcula desde varias notas pequeñas">?</span>
+            <span class="tooltip" data-tooltip="Nota solida: una sola nota directa">i</span>
+          </div>
+          <div class="row">
+            <label>
+              Nombre componente
+              <input type="text" id="controlTitle" placeholder="Control 1">
+            </label>
+            <label>
+              Nota componente
+              <input type="number" id="controlScore" min="0" max="20" step="0.1">
+            </label>
+            <button type="button" class="ghost" id="addControl">Agregar componente</button>
+          </div>
+          <div id="controlList" class="control-list"></div>
+        </div>
+
+        <div class="form-actions">
+          <button class="primary" type="submit" id="saveNote">Agregar nota</button>
+          <button class="ghost is-hidden" type="button" id="cancelEdit">Cancelar edicion</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
