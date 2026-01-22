@@ -19,6 +19,7 @@
       </div>
       <div class="top-actions">
         <button class="icon-button" id="configOpen" aria-label="Abrir configuracion">⚙</button>
+        <button class="icon-button" id="updatesOpen" aria-label="Abrir novedades">🗂️</button>
         <button class="toggle" id="themeToggle" aria-label="Cambiar tema">
           <span id="themeLabel">Modo oscuro</span>
         </button>
@@ -39,6 +40,10 @@
                 <option value="">Todos</option>
               </select>
             </label>
+          </div>
+          <div class="quick-links">
+            <button class="link-add" id="linkAdd" aria-label="Agregar link">+</button>
+            <div id="linksList" class="links-list"></div>
           </div>
           <article class="summary-card">
             <p>Promedio general</p>
@@ -130,7 +135,10 @@
         <div>
           <p class="eyebrow" id="modalEyebrow">Materia</p>
           <h2 id="modalTitle">-</h2>
-          <p class="muted" id="modalTeacher">-</p>
+          <label class="modal-field">
+            Docente
+            <input type="text" id="modalTeacher" placeholder="Docente sin registrar">
+          </label>
         </div>
         <div class="mode-select">
           <label for="modalMode">Modo de calculo</label>
@@ -234,6 +242,30 @@
           <button class="ghost is-hidden" type="button" id="cancelEdit">Cancelar edicion</button>
         </div>
       </form>
+
+      <div class="files-section">
+        <div class="panel-head">
+          <div>
+            <h3>Archivos de la materia</h3>
+            <p>Sube materiales y apuntes relacionados.</p>
+          </div>
+        </div>
+        <form id="fileForm" class="file-form">
+          <label>
+            Nombre del archivo
+            <input type="text" id="fileName" placeholder="Apuntes semana 3" required>
+          </label>
+          <label>
+            Archivo
+            <input type="file" id="fileInput">
+          </label>
+          <div class="form-actions">
+            <button class="primary" type="submit" id="saveFile">Subir archivo</button>
+            <button class="ghost is-hidden" type="button" id="cancelFileEdit">Cancelar edicion</button>
+          </div>
+        </form>
+        <div id="filesList" class="files-list"></div>
+      </div>
     </div>
   </div>
 
@@ -253,6 +285,77 @@
         </label>
       </div>
       <p class="muted small">La importacion reemplaza los datos actuales.</p>
+    </div>
+  </div>
+
+  <div id="updatesModal" class="modal" aria-hidden="true">
+    <div class="modal-card modal-compact">
+      <button class="modal-close" id="updatesClose" aria-label="Cerrar">×</button>
+      <div>
+        <p class="eyebrow">Novedades</p>
+        <h2>Actualizaciones</h2>
+        <p class="muted">Notas de las actualizaciones recientes.</p>
+      </div>
+      <div class="updates-list">
+        <article class="update-item">
+          <h4>1.0.1v</h4>
+          <p><b>-Agrega accesos directos con favicon, emoji o imagen.</b></p>
+          <p>---El objetivo de esto es que puedas tener todo tu apartado universitario en un solo lugar, ya no solo notas, si no que acceso directo a tu Outlook, Copilot, Portal de tu Universidad, Pagos en Linea, etc... Muchas veces en webs como las de Microsoft, el favicon en ves de ser el del link Microsoft usa el logo de la empresa, en esos casos se recomienda descargar de google el png transparente del logo y agregarlo tu mismo. De todos modos se pueden nombrar los links, por si quieres diferenciar mejor. La funcionalidad es simple, clickeas el "+" y podras colocar el link, nombrarlo si quieres y luego podras seleccionar si lo representará el Favicon (El logo de la pestaña), un emoji (Más dificil diferenciar, pero es por si acaso) y finalmente subir una imagen (La mejor opcion). Luego de eso, habrá un lapiz al lado de cada módulo de link por si quieres editar o eliminar el link.</p>
+          <p><b>-Seccion de Actualizaciones</b></p>
+          <p>---Con esto cada vez que se actualice una función estaran aqui las especificaciones, asi ninguna herramienta es realmente complicada. Este apartado siempre se encontrará al lado de la rueda de configuración.</p>
+          <p><b>-Docente Editable</b></p>
+          <p>---Ahora el Docente se puede modificar en caso de.</p>
+          <p><b>-Subida de Archivos</b></p>
+          <p>---Ahora puedes subir archivos a conveniencia en lo mas bajo del panel por materias, en el que puedes escribir el nombre y luego subir el archivo, asi tienes todo en 1 y más organizado, siempre a mano.</p>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <div id="linkModal" class="modal" aria-hidden="true">
+    <div class="modal-card modal-compact">
+      <button class="modal-close" id="linkClose" aria-label="Cerrar">×</button>
+      <div>
+        <p class="eyebrow">Links rapidos</p>
+        <h2>Agregar link</h2>
+        <p class="muted">Guarda accesos directos a tus plataformas.</p>
+      </div>
+      <form id="linkForm" class="link-form">
+        <label>
+          URL
+          <input type="url" id="linkUrl" placeholder="https://tu-sitio.com" required>
+        </label>
+        <label>
+          Nombre (opcional)
+          <input type="text" id="linkLabel" placeholder="Universidad">
+        </label>
+        <div class="link-options">
+          <label>
+            <input type="radio" name="linkIconType" value="favicon" checked>
+            Usar favicon
+          </label>
+          <label>
+            <input type="radio" name="linkIconType" value="emoji">
+            Usar emoji
+          </label>
+          <label>
+            <input type="radio" name="linkIconType" value="image">
+            Usar imagen
+          </label>
+        </div>
+        <label id="emojiRow">
+          Emoji
+          <input type="text" id="linkEmoji" placeholder="🎓">
+        </label>
+        <label id="fileRow">
+          Imagen
+          <input type="file" id="linkFile" accept="image/*">
+        </label>
+        <div class="form-actions">
+          <button class="primary" type="submit" id="saveLink">Guardar link</button>
+          <button class="ghost danger is-hidden" type="button" id="deleteLink">Eliminar link</button>
+        </div>
+      </form>
     </div>
   </div>
 
