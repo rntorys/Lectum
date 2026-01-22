@@ -1,5 +1,6 @@
 const storageKey = "notas-academicas-v1";
 const themeKey = "notas-theme";
+const linksKey = "lectum-links-v1";
 
 const els = {
   appRoot: document.getElementById("appRoot"),
@@ -35,6 +36,20 @@ const els = {
   configClose: document.getElementById("configClose"),
   exportData: document.getElementById("exportData"),
   importFile: document.getElementById("importFile"),
+  updatesOpen: document.getElementById("updatesOpen"),
+  updatesModal: document.getElementById("updatesModal"),
+  updatesClose: document.getElementById("updatesClose"),
+  linkAdd: document.getElementById("linkAdd"),
+  linksList: document.getElementById("linksList"),
+  linkModal: document.getElementById("linkModal"),
+  linkClose: document.getElementById("linkClose"),
+  linkForm: document.getElementById("linkForm"),
+  saveLink: document.getElementById("saveLink"),
+  deleteLink: document.getElementById("deleteLink"),
+  linkUrl: document.getElementById("linkUrl"),
+  linkLabel: document.getElementById("linkLabel"),
+  linkEmoji: document.getElementById("linkEmoji"),
+  linkFile: document.getElementById("linkFile"),
   subjectAverage: document.getElementById("subjectAverage"),
   subjectNotes: document.getElementById("subjectNotes"),
   subjectWeight: document.getElementById("subjectWeight"),
@@ -44,6 +59,12 @@ const els = {
   noteForm: document.getElementById("noteForm"),
   saveNote: document.getElementById("saveNote"),
   cancelEdit: document.getElementById("cancelEdit"),
+  fileForm: document.getElementById("fileForm"),
+  fileInput: document.getElementById("fileInput"),
+  filesList: document.getElementById("filesList"),
+  fileName: document.getElementById("fileName"),
+  saveFile: document.getElementById("saveFile"),
+  cancelFileEdit: document.getElementById("cancelFileEdit"),
   noteTitle: document.getElementById("noteTitle"),
   noteType: document.getElementById("noteType"),
   noteScore: document.getElementById("noteScore"),
@@ -63,9 +84,16 @@ let activeSubjectId = null;
 let controlItems = [];
 let editingNoteId = null;
 let editingControlId = null;
+let links = loadLinks();
+let linkImageData = "";
+let editingLinkId = null;
+let editingFileId = null;
 
 function formatDate(dateValue) {
-  return dateValue || "-";
+  if (!dateValue) return "-";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  return date.toLocaleDateString("es-PE");
 }
 
 function getToday() {
@@ -81,8 +109,21 @@ function loadSubjects() {
   }
 }
 
+function loadLinks() {
+  try {
+    const raw = localStorage.getItem(linksKey);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
 function saveSubjects() {
   localStorage.setItem(storageKey, JSON.stringify(subjects));
+}
+
+function saveLinks() {
+  localStorage.setItem(linksKey, JSON.stringify(links));
 }
 
 function setTheme(theme) {
@@ -200,7 +241,7 @@ function openSubject(subjectId) {
   if (!subject) return;
 
   els.modalTitle.textContent = subject.name;
-  els.modalTeacher.textContent = subject.teacher || "Docente sin registrar";
+  els.modalTeacher.value = subject.teacher || "";
   els.modalMode.value = subject.mode;
   els.modalColor.value = subject.color || "#1f4c7a";
   els.modal.style.setProperty("--subject-color", subject.color || "var(--accent)");
@@ -225,6 +266,31 @@ function openConfig() {
 function closeConfig() {
   els.configModal.classList.remove("is-open");
   els.configModal.setAttribute("aria-hidden", "true");
+}
+
+function openUpdates() {
+  els.updatesModal.classList.add("is-open");
+  els.updatesModal.setAttribute("aria-hidden", "false");
+}
+
+function closeUpdates() {
+  els.updatesModal.classList.remove("is-open");
+  els.updatesModal.setAttribute("aria-hidden", "true");
+}
+
+function openLinkModal() {
+  els.linkModal.classList.add("is-open");
+  els.linkModal.setAttribute("aria-hidden", "false");
+  updateLinkIconFields();
+}
+
+function closeLinkModal() {
+  els.linkModal.classList.remove("is-open");
+  els.linkModal.setAttribute("aria-hidden", "true");
+  els.linkForm.reset();
+  linkImageData = "";
+  editingLinkId = null;
+  els.deleteLink.classList.add("is-hidden");
 }
 
 function renderSubjectDetails(subject) {
@@ -252,6 +318,7 @@ function renderSubjectDetails(subject) {
   }
 
   renderNotes(subject);
+  renderFiles(subject);
 }
 
 function renderNotes(subject) {
@@ -363,6 +430,7 @@ function handleSubjectSubmit(event) {
     color: els.subjectColor.value,
     mode: els.subjectMode.value,
     notes: [],
+    files: [],
   };
 
   subjects.push(newSubject);
@@ -501,6 +569,291 @@ function renderPendingTests(scopedSubjects) {
   });
 }
 
+function renderFiles(subject) {
+  if (!subject.files || !subject.files.length) {
+    els.filesList.innerHTML = "<div class=\"empty\">No hay archivos subidos.</div>";
+    return;
+  }
+
+  els.filesList.innerHTML = "";
+  subject.files.forEach((file) => {
+    const row = document.createElement("div");
+    row.className = "file-item";
+    const displayName = file.displayName || file.name;
+    row.innerHTML = `
+      <div class="file-icon">${iconForFile(file.name)}</div>
+      <div class="file-meta">
+        <h4>${displayName}</h4>
+        <p>Subido: ${formatDate(file.uploadedAt)}</p>
+      </div>
+      <div class="file-actions">
+        <a class="ghost" href="${file.data}" download="${file.name}">Descargar</a>
+        <button class="ghost" type="button" data-file-edit="${file.id}">Editar</button>
+        <button class="ghost danger" type="button" data-file-delete="${file.id}">Eliminar</button>
+      </div>
+    `;
+    els.filesList.appendChild(row);
+  });
+
+  els.filesList.querySelectorAll("[data-file-edit]").forEach((button) => {
+    button.addEventListener("click", () => startEditFile(button.dataset.fileEdit));
+  });
+  els.filesList.querySelectorAll("[data-file-delete]").forEach((button) => {
+    button.addEventListener("click", () => deleteFile(button.dataset.fileDelete));
+  });
+}
+
+function iconForFile(filename) {
+  const ext = filename.split(".").pop().toLowerCase();
+  if (["pdf"].includes(ext)) return "📄";
+  if (["doc", "docx"].includes(ext)) return "📝";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "📊";
+  if (["ppt", "pptx"].includes(ext)) return "📽️";
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return "🖼️";
+  if (["zip", "rar", "7z"].includes(ext)) return "🗜️";
+  return "📁";
+}
+
+function handleFileSubmit(event) {
+  event.preventDefault();
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const file = els.fileInput.files[0];
+  const displayName = els.fileName.value.trim();
+  if (!displayName) return;
+
+  if (editingFileId) {
+    const index = subject.files.findIndex((item) => item.id === editingFileId);
+    if (index === -1) return;
+    const existing = subject.files[index];
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        subject.files[index] = {
+          ...existing,
+          name: file.name,
+          type: file.type,
+          data: reader.result,
+          displayName,
+          uploadedAt: new Date().toISOString(),
+        };
+        saveSubjects();
+        renderFiles(subject);
+        resetFileForm();
+      };
+      reader.readAsDataURL(file);
+    } else {
+      subject.files[index] = {
+        ...existing,
+        displayName,
+      };
+      saveSubjects();
+      renderFiles(subject);
+      resetFileForm();
+    }
+    return;
+  }
+
+  if (!file) {
+    alert("Selecciona un archivo para subir.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const entry = {
+      id: createId(),
+      name: file.name,
+      type: file.type,
+      uploadedAt: new Date().toISOString(),
+      data: reader.result,
+      displayName,
+    };
+    subject.files = subject.files || [];
+    subject.files.unshift(entry);
+    saveSubjects();
+    renderFiles(subject);
+    resetFileForm();
+  };
+  reader.readAsDataURL(file);
+}
+
+function startEditFile(fileId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const file = subject.files.find((item) => item.id === fileId);
+  if (!file) return;
+  editingFileId = fileId;
+  els.fileName.value = file.displayName || file.name;
+  els.saveFile.textContent = "Guardar cambios";
+  els.cancelFileEdit.classList.remove("is-hidden");
+}
+
+function deleteFile(fileId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  if (!confirm("Eliminar este archivo?")) return;
+  subject.files = subject.files.filter((item) => item.id !== fileId);
+  saveSubjects();
+  renderFiles(subject);
+  if (editingFileId === fileId) {
+    resetFileForm();
+  }
+}
+
+function resetFileForm() {
+  els.fileForm.reset();
+  editingFileId = null;
+  els.saveFile.textContent = "Subir archivo";
+  els.cancelFileEdit.classList.add("is-hidden");
+}
+
+function renderLinks() {
+  if (!links.length) {
+    els.linksList.innerHTML = "<span class=\"muted small\">Sin links guardados.</span>";
+    return;
+  }
+
+  els.linksList.innerHTML = "";
+  links.forEach((link) => {
+    const item = document.createElement("div");
+    item.className = "link-item";
+
+    const anchor = document.createElement("a");
+    anchor.className = "link-anchor";
+    anchor.href = link.url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener";
+    anchor.title = link.label || link.url;
+
+    const icon = document.createElement("span");
+    icon.className = "link-icon";
+    if (link.iconType === "emoji") {
+      icon.textContent = link.iconValue || "";
+    } else {
+      const img = document.createElement("img");
+      img.src = link.iconValue;
+      img.alt = "";
+      icon.appendChild(img);
+    }
+
+    anchor.appendChild(icon);
+    if (link.label) {
+      const label = document.createElement("span");
+      label.textContent = link.label;
+      anchor.appendChild(label);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "link-actions";
+    actions.innerHTML = `
+      <button class="icon-button" type="button" data-link-edit="${link.id}" aria-label="Editar link">✎</button>
+    `;
+
+    item.appendChild(anchor);
+    item.appendChild(actions);
+    els.linksList.appendChild(item);
+  });
+
+  els.linksList.querySelectorAll("[data-link-edit]").forEach((button) => {
+    button.addEventListener("click", () => startEditLink(button.dataset.linkEdit));
+  });
+}
+
+function getSelectedIconType() {
+  const selected = document.querySelector("input[name=\"linkIconType\"]:checked");
+  return selected ? selected.value : "favicon";
+}
+
+function updateLinkIconFields() {
+  const type = getSelectedIconType();
+  document.getElementById("emojiRow").style.display = type === "emoji" ? "grid" : "none";
+  document.getElementById("fileRow").style.display = type === "image" ? "grid" : "none";
+}
+
+function handleLinkSubmit(event) {
+  event.preventDefault();
+  const url = els.linkUrl.value.trim();
+  if (!url) return;
+
+  const iconType = getSelectedIconType();
+  let iconValue = "";
+  if (iconType === "favicon") {
+    iconValue = `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
+  } else if (iconType === "emoji") {
+    iconValue = els.linkEmoji.value.trim();
+    if (!iconValue) {
+      alert("Escribe un emoji para el link.");
+      return;
+    }
+  } else {
+    if (!linkImageData) {
+      alert("Selecciona una imagen para el link.");
+      return;
+    }
+    iconValue = linkImageData;
+  }
+
+  const payload = {
+    id: editingLinkId || createId(),
+    url,
+    label: els.linkLabel.value.trim(),
+    iconType,
+    iconValue,
+  };
+
+  if (editingLinkId) {
+    const index = links.findIndex((link) => link.id === editingLinkId);
+    if (index !== -1) links[index] = payload;
+  } else {
+    links.unshift(payload);
+  }
+
+  saveLinks();
+  renderLinks();
+  closeLinkModal();
+}
+
+function handleLinkFileChange(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    linkImageData = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function startEditLink(linkId) {
+  const link = links.find((item) => item.id === linkId);
+  if (!link) return;
+  editingLinkId = linkId;
+  els.linkUrl.value = link.url;
+  els.linkLabel.value = link.label || "";
+  if (link.iconType === "emoji") {
+    document.querySelector("input[name=\"linkIconType\"][value=\"emoji\"]").checked = true;
+    els.linkEmoji.value = link.iconValue || "";
+  } else if (link.iconType === "image") {
+    document.querySelector("input[name=\"linkIconType\"][value=\"image\"]").checked = true;
+    linkImageData = link.iconValue || "";
+  } else {
+    document.querySelector("input[name=\"linkIconType\"][value=\"favicon\"]").checked = true;
+  }
+  updateLinkIconFields();
+  els.deleteLink.classList.remove("is-hidden");
+  openLinkModal();
+}
+
+function deleteLink() {
+  if (!editingLinkId) return;
+  if (!confirm("Eliminar este link?")) return;
+  links = links.filter((item) => item.id !== editingLinkId);
+  saveLinks();
+  renderLinks();
+  closeLinkModal();
+}
+
 function handleModeChange() {
   const subject = getActiveSubject();
   if (!subject) return;
@@ -516,6 +869,14 @@ function handleColorChange() {
   if (!subject) return;
   subject.color = els.modalColor.value;
   els.modal.style.setProperty("--subject-color", subject.color);
+  saveSubjects();
+  renderSubjects();
+}
+
+function handleTeacherChange() {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  subject.teacher = els.modalTeacher.value.trim();
   saveSubjects();
   renderSubjects();
 }
@@ -612,6 +973,7 @@ els.modal.addEventListener("click", (event) => {
 });
 els.modalMode.addEventListener("change", handleModeChange);
 els.modalColor.addEventListener("change", handleColorChange);
+els.modalTeacher.addEventListener("input", handleTeacherChange);
 els.deleteSubject.addEventListener("click", deleteSubject);
 els.groupFilter.addEventListener("change", () => {
   renderSubjects();
@@ -625,6 +987,24 @@ els.configModal.addEventListener("click", (event) => {
 });
 els.exportData.addEventListener("click", handleExport);
 els.importFile.addEventListener("change", handleImport);
+els.updatesOpen.addEventListener("click", openUpdates);
+els.updatesClose.addEventListener("click", closeUpdates);
+els.updatesModal.addEventListener("click", (event) => {
+  if (event.target === els.updatesModal) closeUpdates();
+});
+els.linkAdd.addEventListener("click", openLinkModal);
+els.linkClose.addEventListener("click", closeLinkModal);
+els.linkModal.addEventListener("click", (event) => {
+  if (event.target === els.linkModal) closeLinkModal();
+});
+document.querySelectorAll("input[name=\"linkIconType\"]").forEach((input) => {
+  input.addEventListener("change", updateLinkIconFields);
+});
+els.linkForm.addEventListener("submit", handleLinkSubmit);
+els.linkFile.addEventListener("change", handleLinkFileChange);
+els.deleteLink.addEventListener("click", deleteLink);
+els.fileForm.addEventListener("submit", handleFileSubmit);
+els.cancelFileEdit.addEventListener("click", resetFileForm);
 
 initTheme();
 updateGroupFilter();
@@ -632,3 +1012,4 @@ renderSubjects();
 calculateOverall();
 toggleControlBox();
 renderControlList();
+renderLinks();
