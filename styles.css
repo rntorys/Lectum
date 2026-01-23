@@ -333,6 +333,17 @@ h1 {
   color: var(--muted);
 }
 
+.event-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-button.danger {
+  border-color: rgba(191, 59, 59, 0.4);
+  color: #b13f3f;
+}
+
 .next-event {
   display: grid;
   gap: 8px;
