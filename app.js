@@ -97,6 +97,7 @@ let linkImageData = "";
 let editingLinkId = null;
 let editingFileId = null;
 let events = loadEvents();
+let editingEventId = null;
 
 function formatDate(dateValue) {
   if (!dateValue) return "-";
@@ -610,9 +611,20 @@ function renderEvents() {
         <strong>${event.name}</strong>
         <div class="event-meta">${event.subject}</div>
       </div>
-      <div class="event-meta">${formatDate(event.date)}</div>
+      <div class="event-actions">
+        <span class="event-meta">${formatDate(event.date)}</span>
+        <button class="icon-button" type="button" data-event-edit="${event.id}" aria-label="Editar evento">✎</button>
+        <button class="icon-button danger" type="button" data-event-delete="${event.id}" aria-label="Eliminar evento">-</button>
+      </div>
     `;
     els.eventsList.appendChild(item);
+  });
+
+  els.eventsList.querySelectorAll("[data-event-edit]").forEach((button) => {
+    button.addEventListener("click", () => startEditEvent(button.dataset.eventEdit));
+  });
+  els.eventsList.querySelectorAll("[data-event-delete]").forEach((button) => {
+    button.addEventListener("click", () => deleteEvent(button.dataset.eventDelete));
   });
 
   const today = getToday();
@@ -645,11 +657,40 @@ function handleEventSubmit(event) {
   const date = els.eventDate.value;
   if (!name || !date) return;
 
-  events.unshift({ id: createId(), name, subject, date });
+  if (editingEventId) {
+    const index = events.findIndex((item) => item.id === editingEventId);
+    if (index !== -1) {
+      events[index] = { id: editingEventId, name, subject, date };
+    }
+    editingEventId = null;
+  } else {
+    events.unshift({ id: createId(), name, subject, date });
+  }
   saveEvents();
   renderEvents();
   els.eventForm.reset();
   updateEventSubjects();
+}
+
+function startEditEvent(eventId) {
+  const item = events.find((event) => event.id === eventId);
+  if (!item) return;
+  editingEventId = eventId;
+  els.eventName.value = item.name;
+  els.eventSubject.value = item.subject;
+  els.eventDate.value = item.date;
+}
+
+function deleteEvent(eventId) {
+  if (!confirm("Eliminar este evento?")) return;
+  events = events.filter((item) => item.id !== eventId);
+  saveEvents();
+  renderEvents();
+  if (editingEventId === eventId) {
+    editingEventId = null;
+    els.eventForm.reset();
+    updateEventSubjects();
+  }
 }
 
 function renderFiles(subject) {
