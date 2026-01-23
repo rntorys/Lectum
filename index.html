@@ -86,9 +86,42 @@
           </div>
           <div id="pendingList" class="pending-list"></div>
         </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Eventos</h3>
+              <p>Organiza entregas, exposiciones o recordatorios.</p>
+            </div>
+          </div>
+          <form id="eventForm" class="event-form">
+            <label>
+              Nombre del evento
+              <input type="text" id="eventName" placeholder="Entrega final" required>
+            </label>
+            <label>
+              Materia
+              <select id="eventSubject"></select>
+            </label>
+            <label>
+              Fecha
+              <input type="date" id="eventDate" required>
+            </label>
+            <button class="primary" type="submit">Agregar evento</button>
+          </form>
+          <div id="eventsList" class="events-list"></div>
+        </section>
       </div>
 
       <aside class="right-column">
+        <section class="panel next-event">
+          <div class="next-head">
+            <h3>Proximo evento</h3>
+            <span class="live-dot" aria-hidden="true"></span>
+          </div>
+          <p id="nextEventName">Sin eventos</p>
+          <span id="nextEventMeta" class="muted">Agrega un evento</span>
+        </section>
         <section class="panel">
           <div class="panel-head">
             <div>
@@ -307,6 +340,8 @@
           <p>---Ahora el Docente se puede modificar en caso de.</p>
           <p><b>-Subida de Archivos</b></p>
           <p>---Ahora puedes subir archivos a conveniencia en lo mas bajo del panel por materias, en el que puedes escribir el nombre y luego subir el archivo, asi tienes todo en 1 y más organizado, siempre a mano.</p>
+          <p><b>-Creación de Eventos</b></p>
+          <p>---Podrás programar eventos como deportivos, ayudantías, clases extracurriculares, fuera de horario, etc...</p>
         </article>
       </div>
     </div>
