@@ -1,6 +1,7 @@
 const storageKey = "notas-academicas-v1";
 const themeKey = "notas-theme";
 const linksKey = "lectum-links-v1";
+const eventsKey = "lectum-events-v1";
 
 const els = {
   appRoot: document.getElementById("appRoot"),
@@ -15,6 +16,13 @@ const els = {
   overallLowest: document.getElementById("overallLowest"),
   overallLowestFoot: document.getElementById("overallLowestFoot"),
   pendingList: document.getElementById("pendingList"),
+  eventForm: document.getElementById("eventForm"),
+  eventName: document.getElementById("eventName"),
+  eventSubject: document.getElementById("eventSubject"),
+  eventDate: document.getElementById("eventDate"),
+  eventsList: document.getElementById("eventsList"),
+  nextEventName: document.getElementById("nextEventName"),
+  nextEventMeta: document.getElementById("nextEventMeta"),
   subjectsGrid: document.getElementById("subjectsGrid"),
   subjectForm: document.getElementById("subjectForm"),
   subjectName: document.getElementById("subjectName"),
@@ -88,6 +96,7 @@ let links = loadLinks();
 let linkImageData = "";
 let editingLinkId = null;
 let editingFileId = null;
+let events = loadEvents();
 
 function formatDate(dateValue) {
   if (!dateValue) return "-";
@@ -118,12 +127,25 @@ function loadLinks() {
   }
 }
 
+function loadEvents() {
+  try {
+    const raw = localStorage.getItem(eventsKey);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
 function saveSubjects() {
   localStorage.setItem(storageKey, JSON.stringify(subjects));
 }
 
 function saveLinks() {
   localStorage.setItem(linksKey, JSON.stringify(links));
+}
+
+function saveEvents() {
+  localStorage.setItem(eventsKey, JSON.stringify(events));
 }
 
 function setTheme(theme) {
@@ -438,6 +460,7 @@ function handleSubjectSubmit(event) {
   els.subjectGroup.value = "";
   els.subjectColor.value = "#1f4c7a";
   updateGroupFilter();
+  updateEventSubjects();
   saveSubjects();
   renderSubjects();
   calculateOverall();
@@ -567,6 +590,66 @@ function renderPendingTests(scopedSubjects) {
     `;
     els.pendingList.appendChild(item);
   });
+}
+
+function renderEvents() {
+  if (!events.length) {
+    els.eventsList.innerHTML = "<div class=\"empty\">No hay eventos registrados.</div>";
+    els.nextEventName.textContent = "Sin eventos";
+    els.nextEventMeta.textContent = "Agrega un evento";
+    return;
+  }
+
+  const sorted = [...events].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  els.eventsList.innerHTML = "";
+  sorted.forEach((event) => {
+    const item = document.createElement("div");
+    item.className = "event-item";
+    item.innerHTML = `
+      <div>
+        <strong>${event.name}</strong>
+        <div class="event-meta">${event.subject}</div>
+      </div>
+      <div class="event-meta">${formatDate(event.date)}</div>
+    `;
+    els.eventsList.appendChild(item);
+  });
+
+  const today = getToday();
+  const next = sorted.find((event) => event.date && event.date >= today) || sorted[0];
+  els.nextEventName.textContent = next ? next.name : "Sin eventos";
+  els.nextEventMeta.textContent = next ? `${next.subject} · ${formatDate(next.date)}` : "Agrega un evento";
+}
+
+function updateEventSubjects() {
+  const current = els.eventSubject.value;
+  els.eventSubject.innerHTML = "";
+  const base = document.createElement("option");
+  base.value = "Extra";
+  base.textContent = "Extra";
+  els.eventSubject.appendChild(base);
+
+  subjects.forEach((subject) => {
+    const option = document.createElement("option");
+    option.value = subject.name;
+    option.textContent = subject.name;
+    if (subject.name === current) option.selected = true;
+    els.eventSubject.appendChild(option);
+  });
+}
+
+function handleEventSubmit(event) {
+  event.preventDefault();
+  const name = els.eventName.value.trim();
+  const subject = els.eventSubject.value || "Extra";
+  const date = els.eventDate.value;
+  if (!name || !date) return;
+
+  events.unshift({ id: createId(), name, subject, date });
+  saveEvents();
+  renderEvents();
+  els.eventForm.reset();
+  updateEventSubjects();
 }
 
 function renderFiles(subject) {
@@ -912,6 +995,7 @@ function deleteSubject() {
   saveSubjects();
   closeModal();
   updateGroupFilter();
+  updateEventSubjects();
   renderSubjects();
   calculateOverall();
 }
@@ -950,6 +1034,7 @@ function handleImport(event) {
       saveSubjects();
       closeModal();
       updateGroupFilter();
+      updateEventSubjects();
       renderSubjects();
       calculateOverall();
       closeConfig();
@@ -1005,11 +1090,14 @@ els.linkFile.addEventListener("change", handleLinkFileChange);
 els.deleteLink.addEventListener("click", deleteLink);
 els.fileForm.addEventListener("submit", handleFileSubmit);
 els.cancelFileEdit.addEventListener("click", resetFileForm);
+els.eventForm.addEventListener("submit", handleEventSubmit);
 
 initTheme();
 updateGroupFilter();
+updateEventSubjects();
 renderSubjects();
 calculateOverall();
 toggleControlBox();
 renderControlList();
 renderLinks();
+renderEvents();
