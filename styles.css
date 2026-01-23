@@ -289,6 +289,70 @@ h1 {
   color: var(--muted);
 }
 
+.event-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.event-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.event-form input,
+.event-form select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.events-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.event-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.event-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.next-event {
+  display: grid;
+  gap: 8px;
+}
+
+.next-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e23c3c;
+  box-shadow: 0 0 0 4px rgba(226, 60, 60, 0.15);
+}
+
 .summary-card {
   background: var(--panel);
   border-radius: var(--radius);
