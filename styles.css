@@ -99,24 +99,71 @@ h1 {
 
 .updates-list {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .update-item {
-  padding: 12px;
-  border-radius: 10px;
+  padding: 16px;
+  border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--panel-2);
+  display: grid;
+  gap: 12px;
+  border-left: 4px solid var(--accent);
 }
 
-.update-item h4 {
-  font-size: 14px;
-  margin-bottom: 4px;
+.update-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
 }
 
-.update-item p {
+.update-head h4 {
+  font-size: 16px;
+}
+
+.update-head span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.update-summary {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.update-changes {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+
+.update-changes li {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.update-changes strong {
+  font-size: 13px;
+}
+
+.update-changes span {
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.4;
 }
 
 .toggle {
@@ -256,43 +303,12 @@ h1 {
   color: var(--ink);
 }
 
-.pending-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.pending-card {
-  padding: 12px;
-  border-radius: 10px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--subject-color, var(--accent));
-  display: grid;
-  gap: 6px;
-}
-
-.pending-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-}
-
-.pending-date {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.pending-meta {
-  font-size: 12px;
-  color: var(--muted);
-}
-
 .event-form {
   display: grid;
   gap: 12px;
   margin-top: 12px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr) minmax(140px, 0.65fr) minmax(110px, 0.5fr);
+  align-items: end;
 }
 
 .event-form label {
@@ -300,15 +316,134 @@ h1 {
   gap: 6px;
   font-size: 13px;
   color: var(--muted);
+  min-width: 0;
 }
 
 .event-form input,
-.event-form select {
+.event-form select,
+.event-form textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--ink);
+  font: inherit;
+}
+
+.event-form textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.event-topic {
+  grid-column: 1 / -1;
+}
+
+.event-form .primary {
+  justify-self: start;
+}
+
+.calendar {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.calendar-head {
+  display: grid;
+  grid-template-columns: 38px 1fr 38px;
+  align-items: center;
+  gap: 10px;
+}
+
+.calendar-head h4 {
+  text-align: center;
+  font-size: 15px;
+  text-transform: capitalize;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calendar-weekdays span {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.calendar-day {
+  min-height: 66px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 8px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.calendar-day:hover {
+  border-color: var(--accent);
+}
+
+.calendar-day.is-muted {
+  opacity: 0.45;
+}
+
+.calendar-day.is-today {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.calendar-day.has-events {
+  border-color: var(--event-color, var(--accent));
+  background: var(--panel);
+  background: color-mix(in srgb, var(--event-color, var(--accent)) 18%, var(--panel));
+}
+
+.calendar-day.is-selected {
+  box-shadow: inset 0 0 0 2px var(--event-color, var(--accent));
+}
+
+.day-number {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.day-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.day-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dot-color, var(--accent));
+}
+
+.day-event-name {
+  color: var(--muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .events-list {
@@ -317,18 +452,37 @@ h1 {
   margin-top: 12px;
 }
 
+.events-side-panel {
+  max-height: 560px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.events-list-scroll {
+  overflow-y: auto;
+  padding-right: 4px;
+  align-content: start;
+}
+
 .event-item {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--panel-2);
+  border-left: 4px solid var(--event-color, var(--accent));
 }
 
 .event-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.event-topic-text {
+  margin-top: 4px;
   font-size: 12px;
   color: var(--muted);
 }
@@ -337,6 +491,14 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.events-side-panel .event-item {
+  align-items: start;
+}
+
+.events-side-panel .event-actions {
+  flex-direction: column;
 }
 
 .icon-button.danger {
@@ -524,6 +686,10 @@ h1 {
   width: min(420px, 100%);
 }
 
+.modal-updates {
+  width: min(680px, 100%);
+}
+
 .modal-close {
   position: absolute;
   right: 16px;
@@ -591,6 +757,31 @@ h1 {
 .config-actions {
   display: grid;
   gap: 12px;
+}
+
+.logo-config {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.logo-config img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 6px;
+}
+
+.logo-config h4 {
+  font-size: 14px;
 }
 
 .file-input {
@@ -931,6 +1122,14 @@ h1 {
 
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .event-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .event-form .primary {
+    width: 100%;
   }
 
   .summary-head {

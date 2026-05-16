@@ -11,7 +11,7 @@
   <div class="app" id="appRoot">
     <header class="topbar">
       <div class="brand">
-        <img class="logo" src="img/logo (2).png" alt="Logo">
+        <img class="logo" id="brandLogo" src="img/logo (2).png" alt="Logo">
         <div>
           <p class="eyebrow">Dashboard academico</p>
           <h1>Lectum</h1>
@@ -80,24 +80,14 @@
         <section class="panel">
           <div class="panel-head">
             <div>
-              <h3>Pruebas pendientes</h3>
-              <p>Notas programadas o futuras del grupo seleccionado.</p>
-            </div>
-          </div>
-          <div id="pendingList" class="pending-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
               <h3>Eventos</h3>
-              <p>Organiza entregas, exposiciones o recordatorios.</p>
+              <p>Organiza pruebas, entregas, exposiciones o recordatorios.</p>
             </div>
           </div>
           <form id="eventForm" class="event-form">
             <label>
-              Nombre del evento
-              <input type="text" id="eventName" placeholder="Entrega final" required>
+              Nombre
+              <input type="text" id="eventName" placeholder="Prueba 1" required>
             </label>
             <label>
               Materia
@@ -107,9 +97,33 @@
               Fecha
               <input type="date" id="eventDate" required>
             </label>
-            <button class="primary" type="submit">Agregar evento</button>
+            <label>
+              Hora
+              <input type="time" id="eventTime">
+            </label>
+            <label class="event-topic">
+              Temario
+              <textarea id="eventTopic" placeholder="Unidades, capitulos o contenidos a estudiar"></textarea>
+            </label>
+            <button class="primary" type="submit" id="saveEvent">Agregar prueba</button>
           </form>
-          <div id="eventsList" class="events-list"></div>
+          <div class="calendar">
+            <div class="calendar-head">
+              <button class="icon-button" type="button" id="prevMonth" aria-label="Mes anterior">‹</button>
+              <h4 id="calendarTitle">Mes</h4>
+              <button class="icon-button" type="button" id="nextMonth" aria-label="Mes siguiente">›</button>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span>Lun</span>
+              <span>Mar</span>
+              <span>Mie</span>
+              <span>Jue</span>
+              <span>Vie</span>
+              <span>Sab</span>
+              <span>Dom</span>
+            </div>
+            <div id="calendarGrid" class="calendar-grid"></div>
+          </div>
         </section>
       </div>
 
@@ -156,6 +170,15 @@
             </label>
             <button class="primary" type="submit">Crear materia</button>
           </form>
+        </section>
+        <section class="panel events-side-panel" id="eventsSidePanel">
+          <div class="panel-head">
+            <div>
+              <h3>Proximos eventos</h3>
+              <p>Agenda ordenada por fecha.</p>
+            </div>
+          </div>
+          <div id="eventsList" class="events-list events-list-scroll"></div>
         </section>
       </aside>
     </main>
@@ -244,10 +267,6 @@
             Fecha
             <input type="date" id="noteDate">
           </label>
-          <label class="checkline">
-            <input type="checkbox" id="noteScheduled">
-            Programar (pendiente)
-          </label>
         </div>
 
         <div class="control-box" id="controlBox">
@@ -311,6 +330,18 @@
         <p class="muted">Exporta o importa tus datos en formato JSON.</p>
       </div>
       <div class="config-actions">
+        <div class="logo-config">
+          <img id="logoPreview" src="img/logo (2).png" alt="Logo actual">
+          <div>
+            <h4>Logo del dashboard</h4>
+            <p class="muted small">Usa el logo de tu universidad o una imagen propia.</p>
+          </div>
+        </div>
+        <label class="file-input">
+          Cambiar logo
+          <input type="file" id="logoFile" accept="image/*">
+        </label>
+        <button class="ghost" type="button" id="resetLogo">Restaurar logo original</button>
         <button class="primary" type="button" id="exportData">Exportar JSON</button>
         <label class="file-input">
           Importar JSON
@@ -322,7 +353,7 @@
   </div>
 
   <div id="updatesModal" class="modal" aria-hidden="true">
-    <div class="modal-card modal-compact">
+    <div class="modal-card modal-updates">
       <button class="modal-close" id="updatesClose" aria-label="Cerrar">×</button>
       <div>
         <p class="eyebrow">Novedades</p>
@@ -331,17 +362,75 @@
       </div>
       <div class="updates-list">
         <article class="update-item">
-          <h4>1.0.1v</h4>
-          <p><b>-Agrega accesos directos con favicon, emoji o imagen.</b></p>
-          <p>---El objetivo de esto es que puedas tener todo tu apartado universitario en un solo lugar, ya no solo notas, si no que acceso directo a tu Outlook, Copilot, Portal de tu Universidad, Pagos en Linea, etc... Muchas veces en webs como las de Microsoft, el favicon en ves de ser el del link Microsoft usa el logo de la empresa, en esos casos se recomienda descargar de google el png transparente del logo y agregarlo tu mismo. De todos modos se pueden nombrar los links, por si quieres diferenciar mejor. La funcionalidad es simple, clickeas el "+" y podras colocar el link, nombrarlo si quieres y luego podras seleccionar si lo representará el Favicon (El logo de la pestaña), un emoji (Más dificil diferenciar, pero es por si acaso) y finalmente subir una imagen (La mejor opcion). Luego de eso, habrá un lapiz al lado de cada módulo de link por si quieres editar o eliminar el link.</p>
-          <p><b>-Seccion de Actualizaciones</b></p>
-          <p>---Con esto cada vez que se actualice una función estaran aqui las especificaciones, asi ninguna herramienta es realmente complicada. Este apartado siempre se encontrará al lado de la rueda de configuración.</p>
-          <p><b>-Docente Editable</b></p>
-          <p>---Ahora el Docente se puede modificar en caso de.</p>
-          <p><b>-Subida de Archivos</b></p>
-          <p>---Ahora puedes subir archivos a conveniencia en lo mas bajo del panel por materias, en el que puedes escribir el nombre y luego subir el archivo, asi tienes todo en 1 y más organizado, siempre a mano.</p>
-          <p><b>-Creación de Eventos</b></p>
-          <p>---Podrás programar eventos como deportivos, ayudantías, clases extracurriculares, fuera de horario, etc...</p>
+          <div class="update-head">
+            <h4>16ma26me</h4>
+            <span>16 mayo 2026</span>
+          </div>
+          <p class="update-summary">Calendario, respaldo de datos y registro de cambios mejorados.</p>
+          <ul class="update-changes">
+            <li>
+              <strong>Calendario de eventos</strong>
+              <span>El listado de eventos ahora se muestra como mini calendario mensual con flechas para cambiar de mes.</span>
+            </li>
+            <li>
+              <strong>Pruebas con mas detalle</strong>
+              <span>Ahora puedes guardar nombre, materia, fecha, hora y temario para cada prueba o evento.</span>
+            </li>
+            <li>
+              <strong>Proximo evento actualizado</strong>
+              <span>El panel superior toma en cuenta los nuevos datos del calendario, incluyendo la hora si existe.</span>
+            </li>
+            <li>
+              <strong>JSON completo</strong>
+              <span>La exportacion ahora incluye materias, links, eventos y tema. La importacion mantiene compatibilidad con respaldos antiguos.</span>
+            </li>
+            <li>
+              <strong>Reporte de actualizaciones</strong>
+              <span>Este panel ahora usa tarjetas y listas de cambios en vez de parrafos largos.</span>
+            </li>
+            <li>
+              <strong>Logo personalizable</strong>
+              <span>Configuracion permite cambiar el logo superior por una imagen propia, como el logo de una universidad.</span>
+            </li>
+            <li>
+              <strong>Eventos como agenda central</strong>
+              <span>Se retiro el apartado de pruebas pendientes para concentrar la planificacion en el calendario de eventos.</span>
+            </li>
+          </ul>
+        </article>
+
+        <article class="update-item">
+          <div class="update-head">
+            <h4>23en26mi</h4>
+            <span>Primera actualizacion</span>
+          </div>
+          <p class="update-summary">Primera tanda de herramientas nuevas para convertir Lectum en un dashboard academico mas completo.</p>
+          <ul class="update-changes">
+            <li>
+              <strong>Accesos directos</strong>
+              <span>Agrega links rapidos con favicon, emoji o imagen personalizada para centralizar plataformas universitarias.</span>
+            </li>
+            <li>
+              <strong>Colores por materia</strong>
+              <span>Las materias pueden tener color propio para diferenciar mejor tarjetas, detalles y elementos relacionados.</span>
+            </li>
+            <li>
+              <strong>Seccion de actualizaciones</strong>
+              <span>Se agrego un espacio para explicar cambios nuevos dentro de la app.</span>
+            </li>
+            <li>
+              <strong>Docente editable</strong>
+              <span>El docente de cada materia se puede modificar desde el panel de detalle.</span>
+            </li>
+            <li>
+              <strong>Subida de archivos</strong>
+              <span>Cada materia puede guardar apuntes, materiales y archivos descargables.</span>
+            </li>
+            <li>
+              <strong>Creacion de eventos</strong>
+              <span>Se agrego soporte inicial para registrar eventos academicos o personales.</span>
+            </li>
+          </ul>
         </article>
       </div>
     </div>

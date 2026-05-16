@@ -2,9 +2,12 @@ const storageKey = "notas-academicas-v1";
 const themeKey = "notas-theme";
 const linksKey = "lectum-links-v1";
 const eventsKey = "lectum-events-v1";
+const logoKey = "lectum-logo-v1";
+const defaultLogoSrc = "img/logo (2).png";
 
 const els = {
   appRoot: document.getElementById("appRoot"),
+  brandLogo: document.getElementById("brandLogo"),
   themeToggle: document.getElementById("themeToggle"),
   themeLabel: document.getElementById("themeLabel"),
   overallAverage: document.getElementById("overallAverage"),
@@ -15,11 +18,19 @@ const els = {
   overallNotesFoot: document.getElementById("overallNotesFoot"),
   overallLowest: document.getElementById("overallLowest"),
   overallLowestFoot: document.getElementById("overallLowestFoot"),
-  pendingList: document.getElementById("pendingList"),
   eventForm: document.getElementById("eventForm"),
   eventName: document.getElementById("eventName"),
   eventSubject: document.getElementById("eventSubject"),
   eventDate: document.getElementById("eventDate"),
+  eventTime: document.getElementById("eventTime"),
+  eventTopic: document.getElementById("eventTopic"),
+  saveEvent: document.getElementById("saveEvent"),
+  prevMonth: document.getElementById("prevMonth"),
+  nextMonth: document.getElementById("nextMonth"),
+  calendarTitle: document.getElementById("calendarTitle"),
+  calendarGrid: document.getElementById("calendarGrid"),
+  calendar: document.querySelector(".calendar"),
+  eventsSidePanel: document.getElementById("eventsSidePanel"),
   eventsList: document.getElementById("eventsList"),
   nextEventName: document.getElementById("nextEventName"),
   nextEventMeta: document.getElementById("nextEventMeta"),
@@ -42,6 +53,9 @@ const els = {
   configOpen: document.getElementById("configOpen"),
   configModal: document.getElementById("configModal"),
   configClose: document.getElementById("configClose"),
+  logoPreview: document.getElementById("logoPreview"),
+  logoFile: document.getElementById("logoFile"),
+  resetLogo: document.getElementById("resetLogo"),
   exportData: document.getElementById("exportData"),
   importFile: document.getElementById("importFile"),
   updatesOpen: document.getElementById("updatesOpen"),
@@ -78,7 +92,6 @@ const els = {
   noteScore: document.getElementById("noteScore"),
   noteWeight: document.getElementById("noteWeight"),
   noteDate: document.getElementById("noteDate"),
-  noteScheduled: document.getElementById("noteScheduled"),
   weightLabel: document.getElementById("weightLabel"),
   controlBox: document.getElementById("controlBox"),
   controlTitle: document.getElementById("controlTitle"),
@@ -98,13 +111,18 @@ let editingLinkId = null;
 let editingFileId = null;
 let events = loadEvents();
 let editingEventId = null;
+let calendarDate = new Date();
+let selectedEventDate = getToday();
 
 function formatDate(dateValue) {
   if (!dateValue) return "-";
-  const parts = dateValue.split("-");
+  const base = dateValue.slice(0, 10);
+  const parts = base.split("-");
   if (parts.length === 3) {
-    const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    return date.toLocaleDateString("es-PE");
+    const year = parts[0];
+    const month = parts[1];
+    const day = parts[2];
+    return `${day}/${month}/${year}`;
   }
   return dateValue;
 }
@@ -115,6 +133,35 @@ function getToday() {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function toDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function getSubjectColor(subjectName) {
+  const subject = subjects.find((item) => item.name === subjectName);
+  return subject ? subject.color || "var(--accent)" : "var(--accent)";
+}
+
+function sortEvents(list) {
+  return [...list].sort((a, b) => {
+    const dateCompare = (a.date || "").localeCompare(b.date || "");
+    if (dateCompare !== 0) return dateCompare;
+    return (a.time || "").localeCompare(b.time || "");
+  });
 }
 
 function loadSubjects() {
@@ -166,6 +213,21 @@ function initTheme() {
   const stored = localStorage.getItem(themeKey);
   const theme = stored || "light";
   setTheme(theme);
+}
+
+function setLogo(src) {
+  const logoSrc = src || defaultLogoSrc;
+  els.brandLogo.src = logoSrc;
+  els.logoPreview.src = logoSrc;
+  if (src) {
+    localStorage.setItem(logoKey, src);
+  } else {
+    localStorage.removeItem(logoKey);
+  }
+}
+
+function initLogo() {
+  setLogo(localStorage.getItem(logoKey));
 }
 
 function getActiveSubject() {
@@ -228,7 +290,6 @@ function calculateOverall() {
   els.overallNotesFoot.textContent = `${noteCount} notas totales`;
   els.overallLowest.textContent = lowest.toFixed(2);
   els.overallLowestFoot.textContent = valid.length ? "Peor promedio del grupo" : "Sin materias aun";
-  renderPendingTests(scoped);
 }
 
 function renderSubjects() {
@@ -365,7 +426,6 @@ function renderNotes(subject) {
     const weightInfo = subject.mode === "percent" ? `Peso: ${note.weight || 0}%` : "";
     const compInfo = note.type === "control" ? `Componentes: ${note.components.length}` : "Nota directa";
     const dateInfo = note.date ? `Fecha: ${formatDate(note.date)}` : "Sin fecha";
-    const scheduleInfo = note.scheduled ? "Programada" : "Sin programar";
 
     card.innerHTML = `
       <div class="note-head">
@@ -378,7 +438,7 @@ function renderNotes(subject) {
       </div>
       <div class="note-metrics">${compInfo}</div>
       <div class="note-metrics">Nota: ${score.toFixed(2)} ${weightInfo}</div>
-      <div class="note-metrics">${dateInfo} · ${scheduleInfo}</div>
+      <div class="note-metrics">${dateInfo}</div>
     `;
     els.notesList.appendChild(card);
   });
@@ -425,7 +485,6 @@ function resetNoteForm() {
   els.noteScore.value = "";
   els.noteWeight.value = 0;
   els.noteDate.value = "";
-  els.noteScheduled.checked = false;
   editingNoteId = null;
   els.saveNote.textContent = "Agregar nota";
   els.cancelEdit.classList.add("is-hidden");
@@ -488,7 +547,6 @@ function handleNoteSubmit(event) {
     weight: subject.mode === "percent" ? Number(els.noteWeight.value) : 0,
     components: type === "control" ? controlItems.map((item) => ({ ...item })) : [],
     date: els.noteDate.value,
-    scheduled: els.noteScheduled.checked,
   };
 
   if (type === "control" && !newNote.components.length) {
@@ -542,7 +600,6 @@ function startEditNote(noteId) {
   els.noteScore.value = note.type === "solid" ? note.score : "";
   els.noteWeight.value = subject.mode === "percent" ? note.weight || 0 : 0;
   els.noteDate.value = note.date || "";
-  els.noteScheduled.checked = Boolean(note.scheduled);
   controlItems = note.type === "control" ? note.components.map((item) => ({ ...item })) : [];
   renderControlList();
   toggleControlBox();
@@ -570,56 +627,103 @@ function deleteControlItem(controlId) {
   renderControlList();
 }
 
-function renderPendingTests(scopedSubjects) {
-  const today = getToday();
-  const pending = scopedSubjects.flatMap((subject) =>
-    subject.notes
-      .filter((note) => note.scheduled && (!note.date || note.date >= today))
-      .map((note) => ({ ...note, subjectName: subject.name, subjectColor: subject.color }))
-  );
-
-  if (!pending.length) {
-    els.pendingList.innerHTML = "<div class=\"empty\">No hay pruebas pendientes.</div>";
-    return;
-  }
-
-  const sorted = pending.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  els.pendingList.innerHTML = "";
-  sorted.forEach((note) => {
-    const item = document.createElement("article");
-    item.className = "pending-card";
-    item.style.setProperty("--subject-color", note.subjectColor || "var(--accent)");
-    item.innerHTML = `
-      <div class="pending-head">
-        <strong>${note.title}</strong>
-        <span class="pending-date">${formatDate(note.date)}</span>
-      </div>
-      <div class="pending-meta">${note.subjectName}</div>
-    `;
-    els.pendingList.appendChild(item);
-  });
+function renderEvents() {
+  renderCalendar();
+  renderEventList();
+  renderNextEvent();
+  syncEventsPanelHeight();
 }
 
-function renderEvents() {
-  if (!events.length) {
-    els.eventsList.innerHTML = "<div class=\"empty\">No hay eventos registrados.</div>";
-    els.nextEventName.textContent = "Sin eventos";
-    els.nextEventMeta.textContent = "Agrega un evento";
+function syncEventsPanelHeight() {
+  if (!els.calendar || !els.eventsSidePanel) return;
+  if (window.matchMedia("(max-width: 760px)").matches) {
+    els.eventsSidePanel.style.maxHeight = "";
     return;
   }
 
-  const sorted = [...events].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const calendarRect = els.calendar.getBoundingClientRect();
+  const panelRect = els.eventsSidePanel.getBoundingClientRect();
+  const availableHeight = Math.floor(calendarRect.bottom - panelRect.top);
+  els.eventsSidePanel.style.maxHeight = `${Math.max(240, availableHeight)}px`;
+}
+
+function renderCalendar() {
+  const year = calendarDate.getFullYear();
+  const month = calendarDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const startDate = new Date(year, month, 1 - startOffset);
+
+  els.calendarTitle.textContent = firstDay.toLocaleDateString("es-CL", {
+    month: "long",
+    year: "numeric",
+  });
+  els.calendarGrid.innerHTML = "";
+
+  for (let index = 0; index < 42; index += 1) {
+    const day = new Date(startDate);
+    day.setDate(startDate.getDate() + index);
+    const dateKey = toDateKey(day);
+    const dayEvents = sortEvents(events.filter((event) => event.date === dateKey));
+    const colors = dayEvents.map((event) => getSubjectColor(event.subject));
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "calendar-day";
+    if (day.getMonth() !== month) button.classList.add("is-muted");
+    if (dateKey === getToday()) button.classList.add("is-today");
+    if (dateKey === selectedEventDate) button.classList.add("is-selected");
+    if (dayEvents.length) {
+      button.classList.add("has-events");
+      button.style.setProperty("--event-color", colors[0]);
+    }
+    button.dataset.date = dateKey;
+
+    const dots = colors
+      .slice(0, 4)
+      .map((color) => `<span class="day-dot" style="--dot-color: ${color}"></span>`)
+      .join("");
+    const firstEvent = dayEvents[0] ? `<span class="day-event-name">${escapeHtml(dayEvents[0].name)}</span>` : "";
+    button.innerHTML = `
+      <span class="day-number">${day.getDate()}</span>
+      <span class="day-dots">${dots}</span>
+      ${firstEvent}
+    `;
+    button.addEventListener("click", () => {
+      selectedEventDate = dateKey;
+      if (day.getMonth() !== month) {
+        calendarDate = new Date(day.getFullYear(), day.getMonth(), 1);
+      }
+      renderEvents();
+    });
+    els.calendarGrid.appendChild(button);
+  }
+}
+
+function renderEventList() {
+  const today = getToday();
+  const upcomingEvents = sortEvents(events.filter((event) => event.date && event.date >= today));
+  const visibleEvents = upcomingEvents.length ? upcomingEvents : sortEvents(events);
+
+  if (!visibleEvents.length) {
+    els.eventsList.innerHTML = "<div class=\"empty\">No hay proximos eventos.</div>";
+    return;
+  }
+
   els.eventsList.innerHTML = "";
-  sorted.forEach((event) => {
+  visibleEvents.forEach((event) => {
     const item = document.createElement("div");
+    const color = getSubjectColor(event.subject);
     item.className = "event-item";
+    item.style.setProperty("--event-color", color);
+    const timeText = event.time ? ` · ${escapeHtml(event.time)}` : "";
+    const topicText = event.topic ? `<div class="event-topic-text">${escapeHtml(event.topic)}</div>` : "";
     item.innerHTML = `
       <div>
-        <strong>${event.name}</strong>
-        <div class="event-meta">${event.subject}</div>
+        <strong>${escapeHtml(event.name)}</strong>
+        <div class="event-meta">${escapeHtml(event.subject)} · ${formatDate(event.date)}${timeText}</div>
+        ${topicText}
       </div>
       <div class="event-actions">
-        <span class="event-meta">${formatDate(event.date)}</span>
         <button class="icon-button" type="button" data-event-edit="${event.id}" aria-label="Editar evento">✎</button>
         <button class="icon-button danger" type="button" data-event-delete="${event.id}" aria-label="Eliminar evento">-</button>
       </div>
@@ -633,11 +737,21 @@ function renderEvents() {
   els.eventsList.querySelectorAll("[data-event-delete]").forEach((button) => {
     button.addEventListener("click", () => deleteEvent(button.dataset.eventDelete));
   });
+}
+
+function renderNextEvent() {
+  if (!events.length) {
+    els.nextEventName.textContent = "Sin eventos";
+    els.nextEventMeta.textContent = "Agrega un evento";
+    return;
+  }
 
   const today = getToday();
+  const sorted = sortEvents(events);
   const next = sorted.find((event) => event.date && event.date >= today) || sorted[0];
+  const timeText = next.time ? ` · ${next.time}` : "";
   els.nextEventName.textContent = next ? next.name : "Sin eventos";
-  els.nextEventMeta.textContent = next ? `${next.subject} · ${formatDate(next.date)}` : "Agrega un evento";
+  els.nextEventMeta.textContent = next ? `${next.subject} · ${formatDate(next.date)}${timeText}` : "Agrega un evento";
 }
 
 function updateEventSubjects() {
@@ -662,21 +776,24 @@ function handleEventSubmit(event) {
   const name = els.eventName.value.trim();
   const subject = els.eventSubject.value || "Extra";
   const date = els.eventDate.value;
+  const time = els.eventTime.value;
+  const topic = els.eventTopic.value.trim();
   if (!name || !date) return;
 
   if (editingEventId) {
     const index = events.findIndex((item) => item.id === editingEventId);
     if (index !== -1) {
-      events[index] = { id: editingEventId, name, subject, date };
+      events[index] = { id: editingEventId, name, subject, date, time, topic };
     }
     editingEventId = null;
   } else {
-    events.unshift({ id: createId(), name, subject, date });
+    events.unshift({ id: createId(), name, subject, date, time, topic });
   }
+  selectedEventDate = date;
+  calendarDate = new Date(`${date}T00:00:00`);
   saveEvents();
   renderEvents();
-  els.eventForm.reset();
-  updateEventSubjects();
+  resetEventForm();
 }
 
 function startEditEvent(eventId) {
@@ -686,6 +803,12 @@ function startEditEvent(eventId) {
   els.eventName.value = item.name;
   els.eventSubject.value = item.subject;
   els.eventDate.value = item.date;
+  els.eventTime.value = item.time || "";
+  els.eventTopic.value = item.topic || "";
+  els.saveEvent.textContent = "Guardar cambios";
+  selectedEventDate = item.date || selectedEventDate;
+  if (item.date) calendarDate = new Date(`${item.date}T00:00:00`);
+  renderEvents();
 }
 
 function deleteEvent(eventId) {
@@ -694,10 +817,15 @@ function deleteEvent(eventId) {
   saveEvents();
   renderEvents();
   if (editingEventId === eventId) {
-    editingEventId = null;
-    els.eventForm.reset();
-    updateEventSubjects();
+    resetEventForm();
   }
+}
+
+function resetEventForm() {
+  editingEventId = null;
+  els.eventForm.reset();
+  els.saveEvent.textContent = "Agregar prueba";
+  updateEventSubjects();
 }
 
 function renderFiles(subject) {
@@ -1002,6 +1130,7 @@ function handleColorChange() {
   els.modal.style.setProperty("--subject-color", subject.color);
   saveSubjects();
   renderSubjects();
+  renderEvents();
 }
 
 function handleTeacherChange() {
@@ -1054,8 +1183,37 @@ function handleThemeToggle() {
   setTheme(next);
 }
 
+function handleLogoChange(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    setLogo(reader.result);
+    els.logoFile.value = "";
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleLogoReset() {
+  setLogo("");
+  els.logoFile.value = "";
+}
+
 function handleExport() {
-  const payload = JSON.stringify(subjects, null, 2);
+  const payload = JSON.stringify(
+    {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      theme: document.body.getAttribute("data-theme") || "light",
+      logo: localStorage.getItem(logoKey) || "",
+      subjects,
+      links,
+      events,
+    },
+    null,
+    2
+  );
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -1075,16 +1233,32 @@ function handleImport(event) {
   reader.onload = () => {
     try {
       const parsed = JSON.parse(reader.result);
-      if (!Array.isArray(parsed)) {
+      const nextSubjects = Array.isArray(parsed) ? parsed : parsed.subjects;
+      const nextLinks = Array.isArray(parsed) ? [] : parsed.links || [];
+      const nextEvents = Array.isArray(parsed) ? [] : parsed.events || [];
+
+      if (!Array.isArray(nextSubjects) || !Array.isArray(nextLinks) || !Array.isArray(nextEvents)) {
         throw new Error("Formato invalido");
       }
-      subjects = parsed;
+      subjects = nextSubjects;
+      links = nextLinks;
+      events = nextEvents;
+      if (!Array.isArray(parsed) && parsed.theme) {
+        setTheme(parsed.theme === "dark" ? "dark" : "light");
+      }
+      if (!Array.isArray(parsed)) {
+        setLogo(parsed.logo || "");
+      }
       saveSubjects();
+      saveLinks();
+      saveEvents();
       closeModal();
       updateGroupFilter();
       updateEventSubjects();
       renderSubjects();
       calculateOverall();
+      renderLinks();
+      renderEvents();
       closeConfig();
     } catch (err) {
       alert("El archivo JSON no es valido.");
@@ -1118,6 +1292,8 @@ els.configClose.addEventListener("click", closeConfig);
 els.configModal.addEventListener("click", (event) => {
   if (event.target === els.configModal) closeConfig();
 });
+els.logoFile.addEventListener("change", handleLogoChange);
+els.resetLogo.addEventListener("click", handleLogoReset);
 els.exportData.addEventListener("click", handleExport);
 els.importFile.addEventListener("change", handleImport);
 els.updatesOpen.addEventListener("click", openUpdates);
@@ -1138,9 +1314,21 @@ els.linkFile.addEventListener("change", handleLinkFileChange);
 els.deleteLink.addEventListener("click", deleteLink);
 els.fileForm.addEventListener("submit", handleFileSubmit);
 els.cancelFileEdit.addEventListener("click", resetFileForm);
+els.prevMonth.addEventListener("click", () => {
+  calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
+  selectedEventDate = toDateKey(calendarDate);
+  renderEvents();
+});
+els.nextMonth.addEventListener("click", () => {
+  calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1);
+  selectedEventDate = toDateKey(calendarDate);
+  renderEvents();
+});
+window.addEventListener("resize", syncEventsPanelHeight);
 els.eventForm.addEventListener("submit", handleEventSubmit);
 
 initTheme();
+initLogo();
 updateGroupFilter();
 updateEventSubjects();
 renderSubjects();
