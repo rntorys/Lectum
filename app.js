@@ -3,7 +3,10 @@ const themeKey = "notas-theme";
 const linksKey = "lectum-links-v1";
 const eventsKey = "lectum-events-v1";
 const logoKey = "lectum-logo-v1";
-const defaultLogoSrc = "img/logo (2).png";
+const settingsKey = "lectum-settings-v1";
+const defaultLogoSrc = "img/newlogolec.png";
+const defaultFailColor = "#fff1f2";
+const defaultPassColor = "#f0fdf4";
 
 const els = {
   appRoot: document.getElementById("appRoot"),
@@ -56,6 +59,17 @@ const els = {
   logoPreview: document.getElementById("logoPreview"),
   logoFile: document.getElementById("logoFile"),
   resetLogo: document.getElementById("resetLogo"),
+  weightedAverages: document.getElementById("weightedAverages"),
+  creditsList: document.getElementById("creditsList"),
+  creditsStatus: document.getElementById("creditsStatus"),
+  passingEnabled: document.getElementById("passingEnabled"),
+  passingScore: document.getElementById("passingScore"),
+  failColor: document.getElementById("failColor"),
+  passColor: document.getElementById("passColor"),
+  colorDashboard: document.getElementById("colorDashboard"),
+  colorSubjects: document.getElementById("colorSubjects"),
+  colorComponents: document.getElementById("colorComponents"),
+  passingStatus: document.getElementById("passingStatus"),
   exportData: document.getElementById("exportData"),
   importFile: document.getElementById("importFile"),
   updatesOpen: document.getElementById("updatesOpen"),
@@ -78,11 +92,13 @@ const els = {
   weightBox: document.getElementById("weightBox"),
   weightAlert: document.getElementById("weightAlert"),
   notesList: document.getElementById("notesList"),
+  addNoteToggle: document.getElementById("addNoteToggle"),
   noteForm: document.getElementById("noteForm"),
   saveNote: document.getElementById("saveNote"),
   cancelEdit: document.getElementById("cancelEdit"),
   fileForm: document.getElementById("fileForm"),
   fileInput: document.getElementById("fileInput"),
+  filePickerLabel: document.getElementById("filePickerLabel"),
   filesList: document.getElementById("filesList"),
   fileName: document.getElementById("fileName"),
   saveFile: document.getElementById("saveFile"),
@@ -93,18 +109,14 @@ const els = {
   noteWeight: document.getElementById("noteWeight"),
   noteDate: document.getElementById("noteDate"),
   weightLabel: document.getElementById("weightLabel"),
-  controlBox: document.getElementById("controlBox"),
-  controlTitle: document.getElementById("controlTitle"),
-  controlScore: document.getElementById("controlScore"),
-  controlList: document.getElementById("controlList"),
-  addControl: document.getElementById("addControl"),
 };
 
 let subjects = loadSubjects();
 let activeSubjectId = null;
-let controlItems = [];
 let editingNoteId = null;
-let editingControlId = null;
+let inlineEditingNoteId = null;
+let addingComponentNoteId = null;
+let inlineEditingComponent = null;
 let links = loadLinks();
 let linkImageData = "";
 let editingLinkId = null;
@@ -113,6 +125,7 @@ let events = loadEvents();
 let editingEventId = null;
 let calendarDate = new Date();
 let selectedEventDate = getToday();
+let settings = loadSettings();
 
 function formatDate(dateValue) {
   if (!dateValue) return "-";
@@ -164,10 +177,66 @@ function sortEvents(list) {
   });
 }
 
+function normalizeCredits(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+  return Math.round(parsed);
+}
+
+function normalizeSubject(subject) {
+  return {
+    ...subject,
+    credits: normalizeCredits(subject.credits),
+    notes: Array.isArray(subject.notes) ? subject.notes : [],
+    files: Array.isArray(subject.files) ? subject.files : [],
+  };
+}
+
+function normalizeSettings(value) {
+  const passingScore = Number(value && value.passingScore);
+  const failColor = value && value.failColor === "#c43b3b" ? defaultFailColor : value && value.failColor;
+  const passColor = value && value.passColor === "#2f8f5b" ? defaultPassColor : value && value.passColor;
+  const hasPassingTargets = value && (
+    Object.prototype.hasOwnProperty.call(value, "colorDashboard") ||
+    Object.prototype.hasOwnProperty.call(value, "colorSubjects") ||
+    Object.prototype.hasOwnProperty.call(value, "colorComponents")
+  );
+  return {
+    weightedAverages: Boolean(value && value.weightedAverages),
+    passingEnabled: Boolean(value && value.passingEnabled),
+    passingScore: Number.isFinite(passingScore) ? passingScore : 55,
+    failColor: normalizeColor(failColor, defaultFailColor),
+    passColor: normalizeColor(passColor, defaultPassColor),
+    colorDashboard: hasPassingTargets ? Boolean(value.colorDashboard) : true,
+    colorSubjects: hasPassingTargets ? Boolean(value.colorSubjects) : true,
+    colorComponents: hasPassingTargets ? Boolean(value.colorComponents) : true,
+  };
+}
+
+function normalizeColor(value, fallback) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : fallback;
+}
+
+function colorForScore(score, target) {
+  if (!settings.passingEnabled || !Number.isFinite(Number(score)) || Number(score) <= 0) return "";
+  if (target && settings[target] === false) return "";
+  return Number(score) >= settings.passingScore ? settings.passColor : settings.failColor;
+}
+
+function applyScoreColor(element, score, target) {
+  const color = colorForScore(score, target);
+  if (color) {
+    element.style.color = color;
+  } else {
+    element.style.removeProperty("color");
+  }
+}
+
 function loadSubjects() {
   try {
     const raw = localStorage.getItem(storageKey);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeSubject) : [];
   } catch (err) {
     return [];
   }
@@ -191,6 +260,15 @@ function loadEvents() {
   }
 }
 
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(settingsKey);
+    return normalizeSettings(raw ? JSON.parse(raw) : {});
+  } catch (err) {
+    return normalizeSettings({});
+  }
+}
+
 function saveSubjects() {
   localStorage.setItem(storageKey, JSON.stringify(subjects));
 }
@@ -201,6 +279,10 @@ function saveLinks() {
 
 function saveEvents() {
   localStorage.setItem(eventsKey, JSON.stringify(events));
+}
+
+function saveSettings() {
+  localStorage.setItem(settingsKey, JSON.stringify(settings));
 }
 
 function setTheme(theme) {
@@ -240,23 +322,25 @@ function createId() {
 
 function computeNoteScore(note) {
   if (note.type === "control") {
-    if (!note.components || !note.components.length) return 0;
-    const sum = note.components.reduce((acc, item) => acc + item.score, 0);
-    return sum / note.components.length;
+    const activeComponents = (note.components || []).filter((item) => !item.discarded);
+    if (!activeComponents.length) return 0;
+    const sum = activeComponents.reduce((acc, item) => acc + item.score, 0);
+    return sum / activeComponents.length;
   }
   return note.score;
 }
 
 function calculateSubjectAverage(subject) {
-  if (!subject.notes.length) return { average: 0, weightSum: 0 };
-  const scores = subject.notes.map((note) => computeNoteScore(note));
+  const activeNotes = subject.notes.filter((note) => !note.discarded);
+  if (!activeNotes.length) return { average: 0, weightSum: 0 };
+  const scores = activeNotes.map((note) => computeNoteScore(note));
 
   if (subject.mode === "percent") {
-    const weightSum = subject.notes.reduce((acc, note) => acc + (note.weight || 0), 0);
+    const weightSum = activeNotes.reduce((acc, note) => acc + (note.weight || 0), 0);
     if (weightSum <= 0) {
       return { average: 0, weightSum };
     }
-    const weighted = subject.notes.reduce((acc, note, index) => {
+    const weighted = activeNotes.reduce((acc, note, index) => {
       return acc + scores[index] * ((note.weight || 0) / weightSum);
     }, 0);
     return { average: weighted, weightSum };
@@ -273,22 +357,54 @@ function calculateSubjectAverage(subject) {
   return { average: sum / scores.length, weightSum: 0 };
 }
 
+function getLastGroupSubjects() {
+  if (!subjects.length) return [];
+  const lastSubjectWithGroup = [...subjects].reverse().find((subject) => subject.group);
+  if (!lastSubjectWithGroup) return subjects.filter((subject) => !subject.group);
+  return subjects.filter((subject) => subject.group === lastSubjectWithGroup.group);
+}
+
+function getHighestCreditSubject(list) {
+  if (!list.length) return null;
+  return list.reduce((highest, subject) => {
+    if (!highest) return subject;
+    return normalizeCredits(subject.credits) > normalizeCredits(highest.credits) ? subject : highest;
+  }, null);
+}
+
 function calculateOverall() {
   const group = els.groupFilter.value;
   const scoped = group ? subjects.filter((subject) => subject.group === group) : subjects;
-  const subjectAverages = scoped.map((subject) => calculateSubjectAverage(subject).average);
-  const valid = subjectAverages.filter((val) => val > 0);
-  const overall = valid.length ? valid.reduce((acc, val) => acc + val, 0) / valid.length : 0;
-  const noteCount = scoped.reduce((acc, subject) => acc + subject.notes.length, 0);
+  const validSubjects = scoped
+    .map((subject) => ({
+      subject,
+      average: calculateSubjectAverage(subject).average,
+    }))
+    .filter((item) => item.average > 0);
+  const valid = validSubjects.map((item) => item.average);
+  const totalCredits = validSubjects.reduce((acc, item) => acc + normalizeCredits(item.subject.credits), 0);
+  const weightedOverall = totalCredits
+    ? validSubjects.reduce((acc, item) => acc + item.average * normalizeCredits(item.subject.credits), 0) / totalCredits
+    : 0;
+  const simpleOverall = valid.length ? valid.reduce((acc, val) => acc + val, 0) / valid.length : 0;
+  const overall = settings.weightedAverages ? weightedOverall : simpleOverall;
   const lowest = valid.length ? Math.min(...valid) : 0;
+  const creditScope = group ? scoped : getLastGroupSubjects();
+  const highestCreditSubject = getHighestCreditSubject(creditScope);
 
   els.overallAverage.textContent = overall.toFixed(2);
-  els.overallFoot.textContent = valid.length ? `${valid.length} materias con notas` : "Sin materias aun";
+  applyScoreColor(els.overallAverage, overall, "colorDashboard");
+  els.overallFoot.textContent = valid.length
+    ? `${valid.length} materias con notas${settings.weightedAverages ? ` · ${totalCredits} creditos` : ""}`
+    : "Sin materias aun";
   els.overallSubjects.textContent = scoped.length;
   els.overallSubjectsFoot.textContent = `${scoped.length} materias`;
-  els.overallNotes.textContent = noteCount;
-  els.overallNotesFoot.textContent = `${noteCount} notas totales`;
+  els.overallNotes.textContent = highestCreditSubject ? normalizeCredits(highestCreditSubject.credits) : "0";
+  els.overallNotesFoot.textContent = highestCreditSubject
+    ? `${highestCreditSubject.name} · ${highestCreditSubject.group || "Sin grupo"}`
+    : "Sin materias aun";
   els.overallLowest.textContent = lowest.toFixed(2);
+  applyScoreColor(els.overallLowest, lowest, "colorDashboard");
   els.overallLowestFoot.textContent = valid.length ? "Peor promedio del grupo" : "Sin materias aun";
 }
 
@@ -305,6 +421,9 @@ function renderSubjects() {
   scoped.forEach((subject) => {
     const card = document.createElement("article");
     const stats = calculateSubjectAverage(subject);
+    const averageColor = colorForScore(stats.average, "colorSubjects");
+    const activeNotesCount = subject.notes.filter((note) => !note.discarded).length;
+    const discardedNotesCount = subject.notes.filter((note) => note.discarded).length;
     card.className = "subject-card";
     card.style.setProperty("--subject-color", subject.color || "var(--accent)");
     card.innerHTML = `
@@ -312,8 +431,9 @@ function renderSubjects() {
       <h4>${subject.name}</h4>
       <span>${subject.teacher || "Docente sin registrar"}</span>
       <span>${subject.group || "Sin grupo"}</span>
-      <strong>Promedio: ${stats.average.toFixed(2)}</strong>
-      <span>${subject.notes.length} notas</span>
+      ${settings.weightedAverages ? `<span>Creditos: ${normalizeCredits(subject.credits)}</span>` : ""}
+      <strong ${averageColor ? `style="color: ${averageColor}"` : ""}>Promedio: ${stats.average.toFixed(2)}</strong>
+      <span>${activeNotesCount} notas${discardedNotesCount ? ` · ${discardedNotesCount} descartadas` : ""}</span>
     `;
     card.addEventListener("click", () => openSubject(subject.id));
     els.subjectsGrid.appendChild(card);
@@ -350,6 +470,8 @@ function closeModal() {
 }
 
 function openConfig() {
+  renderCreditsSettings();
+  renderPassingSettings();
   els.configModal.classList.add("is-open");
   els.configModal.setAttribute("aria-hidden", "false");
 }
@@ -387,7 +509,8 @@ function closeLinkModal() {
 function renderSubjectDetails(subject) {
   const stats = calculateSubjectAverage(subject);
   els.subjectAverage.textContent = stats.average.toFixed(2);
-  els.subjectNotes.textContent = subject.notes.length;
+  applyScoreColor(els.subjectAverage, stats.average, "colorSubjects");
+  els.subjectNotes.textContent = subject.notes.filter((note) => !note.discarded).length;
   els.subjectWeight.textContent = `${stats.weightSum.toFixed(1)}%`;
   els.weightBox.style.display = subject.mode === "percent" ? "block" : "none";
   els.weightLabel.style.display = subject.mode === "percent" ? "grid" : "none";
@@ -421,63 +544,427 @@ function renderNotes(subject) {
   els.notesList.innerHTML = "";
   subject.notes.forEach((note) => {
     const score = computeNoteScore(note);
+    const isDiscarded = Boolean(note.discarded);
+    const scoreColor = isDiscarded ? "" : colorForScore(score, "colorComponents");
     const card = document.createElement("article");
-    card.className = "note-card";
+    card.className = `note-card${isDiscarded ? " is-discarded" : ""}`;
+    const isEditingNote = inlineEditingNoteId === note.id;
+    const isAddingComponent = addingComponentNoteId === note.id;
     const weightInfo = subject.mode === "percent" ? `Peso: ${note.weight || 0}%` : "";
-    const compInfo = note.type === "control" ? `Componentes: ${note.components.length}` : "Nota directa";
+    const compInfo = note.type === "control" ? `Componentes: ${(note.components || []).length}` : "Nota directa";
     const dateInfo = note.date ? `Fecha: ${formatDate(note.date)}` : "Sin fecha";
+    const noteHeader = isEditingNote
+      ? `
+        <div class="inline-edit note-inline-edit">
+          <label>
+            Nombre
+            <input type="text" value="${escapeHtml(note.title)}" data-note-title-input="${note.id}">
+          </label>
+          ${note.type === "solid" ? `
+            <label>
+              Nota
+              <input type="number" min="0" step="0.1" value="${Number(note.score || 0)}" data-note-score-input="${note.id}">
+            </label>
+          ` : ""}
+          ${subject.mode === "percent" ? `
+            <label>
+              Porcentaje
+              <input type="number" min="0" max="100" step="0.1" value="${Number(note.weight || 0)}" data-note-weight-input="${note.id}">
+            </label>
+          ` : ""}
+          <label>
+            Fecha
+            <input type="date" value="${escapeHtml(note.date || "")}" data-note-date-input="${note.id}">
+          </label>
+        </div>
+      `
+      : `<strong>${escapeHtml(note.title)}</strong>`;
+    const componentList = note.type === "control"
+      ? `
+        <div class="note-components">
+          ${(note.components || []).map((component) => {
+            const componentScore = Number(component.score);
+            const isComponentDiscarded = Boolean(component.discarded);
+            const componentColor = isDiscarded || isComponentDiscarded ? "" : colorForScore(componentScore, "colorComponents");
+            const isEditingComponent = inlineEditingComponent &&
+              inlineEditingComponent.noteId === note.id &&
+              inlineEditingComponent.componentId === component.id;
+            if (isEditingComponent) {
+              return `
+                <div class="note-component component-inline-edit">
+                  <label>
+                    Nombre
+                    <input type="text" value="${escapeHtml(component.title)}" data-component-title-input="${escapeHtml(component.id)}">
+                  </label>
+                  <label>
+                    Nota
+                    <input type="number" min="0" step="0.1" value="${Number.isFinite(componentScore) ? componentScore : 0}" data-component-score-input="${escapeHtml(component.id)}">
+                  </label>
+                  <div class="inline-actions">
+                    <button class="ghost" type="button" data-component-save="${escapeHtml(component.id)}" data-note-id="${escapeHtml(note.id)}">Guardar</button>
+                    <button class="ghost" type="button" data-component-cancel>Cancelar</button>
+                  </div>
+                </div>
+              `;
+            }
+            return `
+              <div class="note-component${isComponentDiscarded ? " is-discarded" : ""}" draggable="true" data-note-component="${escapeHtml(component.id)}" data-note-id="${escapeHtml(note.id)}">
+                <span class="drag-handle" role="button" tabindex="0" draggable="true" aria-label="Arrastrar componente" title="Arrastrar componente">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </span>
+                <span>${escapeHtml(component.title)}</span>
+                <strong ${componentColor ? `style="color: ${componentColor}"` : ""}>${Number.isFinite(componentScore) ? componentScore.toFixed(2) : "0.00"}</strong>
+                <div class="component-actions">
+                  ${isComponentDiscarded ? `<span class="note-type note-status">Descartado</span>` : ""}
+                  ${isComponentDiscarded
+                    ? `<button class="ghost" type="button" data-component-restore="${escapeHtml(component.id)}" data-note-id="${escapeHtml(note.id)}">Reintegrar</button>`
+                    : `
+                      <button class="ghost" type="button" data-component-edit="${escapeHtml(component.id)}" data-note-id="${escapeHtml(note.id)}">Editar</button>
+                      <button class="ghost" type="button" data-component-discard="${escapeHtml(component.id)}" data-note-id="${escapeHtml(note.id)}">Descartar</button>
+                    `}
+                  <button class="ghost danger" type="button" data-component-delete="${escapeHtml(component.id)}" data-note-id="${escapeHtml(note.id)}">Eliminar</button>
+                </div>
+              </div>
+            `;
+          }).join("")}
+          ${isAddingComponent ? `
+            <div class="note-component component-inline-edit add-component-row">
+              <label>
+                Nombre
+                <input type="text" placeholder="Control 1" data-new-component-title="${escapeHtml(note.id)}">
+              </label>
+              <label>
+                Nota
+                <input type="number" min="0" step="0.1" data-new-component-score="${escapeHtml(note.id)}">
+              </label>
+              <div class="inline-actions">
+                <button class="ghost" type="button" data-component-add-save="${escapeHtml(note.id)}">Crear</button>
+                <button class="ghost" type="button" data-component-add-cancel>Cancelar</button>
+              </div>
+            </div>
+          ` : ""}
+        </div>
+      `
+      : "";
 
     card.innerHTML = `
       <div class="note-head">
-        <strong>${note.title}</strong>
+        ${noteHeader}
         <div class="note-actions">
           <span class="note-type">${note.type === "control" ? "Control" : "Solida"}</span>
-          <button class="ghost" type="button" data-edit="${note.id}">Editar</button>
+          ${isDiscarded ? `<span class="note-type note-status">Descartada</span>` : ""}
+          ${note.type === "control" && !isDiscarded ? `<button class="icon-button" type="button" data-component-add="${note.id}" aria-label="Agregar componente">+</button>` : ""}
+          ${isDiscarded
+            ? `<button class="ghost" type="button" data-restore-note="${note.id}">Reintegrar</button>`
+            : isEditingNote
+            ? `
+              <button class="ghost" type="button" data-note-save="${note.id}">Guardar</button>
+              <button class="ghost" type="button" data-note-cancel>Cancelar</button>
+            `
+            : `<button class="ghost" type="button" data-edit="${note.id}">Editar</button>`}
+          ${!isDiscarded ? `<button class="ghost" type="button" data-discard-note="${note.id}">Descartar</button>` : ""}
           <button class="ghost danger" type="button" data-delete="${note.id}">Eliminar</button>
         </div>
       </div>
       <div class="note-metrics">${compInfo}</div>
-      <div class="note-metrics">Nota: ${score.toFixed(2)} ${weightInfo}</div>
+      ${componentList}
+      <div class="note-metrics">Nota: <strong ${scoreColor ? `style="color: ${scoreColor}"` : ""}>${score.toFixed(2)}</strong> ${weightInfo}</div>
       <div class="note-metrics">${dateInfo}</div>
     `;
     els.notesList.appendChild(card);
   });
 
   els.notesList.querySelectorAll("[data-edit]").forEach((button) => {
-    button.addEventListener("click", () => startEditNote(button.dataset.edit));
+    button.addEventListener("click", () => startInlineEditNote(button.dataset.edit));
+  });
+  els.notesList.querySelectorAll("[data-note-save]").forEach((button) => {
+    button.addEventListener("click", () => saveInlineNote(button.dataset.noteSave));
+  });
+  els.notesList.querySelectorAll("[data-note-cancel]").forEach((button) => {
+    button.addEventListener("click", cancelInlineNoteEdit);
   });
   els.notesList.querySelectorAll("[data-delete]").forEach((button) => {
     button.addEventListener("click", () => deleteNote(button.dataset.delete));
   });
+  els.notesList.querySelectorAll("[data-discard-note]").forEach((button) => {
+    button.addEventListener("click", () => setNoteDiscarded(button.dataset.discardNote, true));
+  });
+  els.notesList.querySelectorAll("[data-restore-note]").forEach((button) => {
+    button.addEventListener("click", () => setNoteDiscarded(button.dataset.restoreNote, false));
+  });
+  els.notesList.querySelectorAll("[data-component-add]").forEach((button) => {
+    button.addEventListener("click", () => startAddComponent(button.dataset.componentAdd));
+  });
+  els.notesList.querySelectorAll("[data-component-add-save]").forEach((button) => {
+    button.addEventListener("click", () => saveNewComponent(button.dataset.componentAddSave));
+  });
+  els.notesList.querySelectorAll("[data-component-add-cancel]").forEach((button) => {
+    button.addEventListener("click", cancelAddComponent);
+  });
+  els.notesList.querySelectorAll("[data-component-edit]").forEach((button) => {
+    button.addEventListener("click", () => startInlineEditComponent(button.dataset.noteId, button.dataset.componentEdit));
+  });
+  els.notesList.querySelectorAll("[data-component-save]").forEach((button) => {
+    button.addEventListener("click", () => saveInlineComponent(button.dataset.noteId, button.dataset.componentSave));
+  });
+  els.notesList.querySelectorAll("[data-component-cancel]").forEach((button) => {
+    button.addEventListener("click", cancelInlineComponentEdit);
+  });
+  els.notesList.querySelectorAll("[data-component-delete]").forEach((button) => {
+    button.addEventListener("click", () => deleteSavedComponent(button.dataset.noteId, button.dataset.componentDelete));
+  });
+  els.notesList.querySelectorAll("[data-component-discard]").forEach((button) => {
+    button.addEventListener("click", () => setComponentDiscarded(button.dataset.noteId, button.dataset.componentDiscard, true));
+  });
+  els.notesList.querySelectorAll("[data-component-restore]").forEach((button) => {
+    button.addEventListener("click", () => setComponentDiscarded(button.dataset.noteId, button.dataset.componentRestore, false));
+  });
+  els.notesList.querySelectorAll(".note-component").forEach((row) => {
+    const handle = row.querySelector(".drag-handle");
+    if (!handle) return;
+    handle.addEventListener("pointerdown", () => {
+      row.dataset.dragReady = "true";
+    });
+    row.addEventListener("dragstart", handleSavedComponentDragStart);
+    row.addEventListener("dragover", handleSavedComponentDragOver);
+    row.addEventListener("dragleave", handleSavedComponentDragLeave);
+    row.addEventListener("drop", handleSavedComponentDrop);
+    row.addEventListener("dragend", handleSavedComponentDragEnd);
+  });
 }
 
-function renderControlList() {
-  if (!controlItems.length) {
-    els.controlList.innerHTML = "<div class=\"empty\">Agrega componentes para la nota control.</div>";
+function refreshActiveSubjectDetails() {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  saveSubjects();
+  renderSubjectDetails(subject);
+  renderSubjects();
+  calculateOverall();
+}
+
+function startInlineEditNote(noteId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  inlineEditingNoteId = noteId;
+  addingComponentNoteId = null;
+  inlineEditingComponent = null;
+  renderSubjectDetails(subject);
+}
+
+function cancelInlineNoteEdit() {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  inlineEditingNoteId = null;
+  renderSubjectDetails(subject);
+}
+
+function saveInlineNote(noteId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const note = subject.notes.find((item) => item.id === noteId);
+  if (!note) return;
+
+  const titleInput = els.notesList.querySelector(`[data-note-title-input="${noteId}"]`);
+  const scoreInput = els.notesList.querySelector(`[data-note-score-input="${noteId}"]`);
+  const weightInput = els.notesList.querySelector(`[data-note-weight-input="${noteId}"]`);
+  const dateInput = els.notesList.querySelector(`[data-note-date-input="${noteId}"]`);
+  const nextTitle = titleInput ? titleInput.value.trim() : note.title;
+  if (!nextTitle) return;
+
+  note.title = nextTitle;
+  if (note.type === "solid" && scoreInput) note.score = Number(scoreInput.value);
+  if (weightInput) note.weight = Number(weightInput.value);
+  if (dateInput) note.date = dateInput.value;
+  inlineEditingNoteId = null;
+  refreshActiveSubjectDetails();
+}
+
+function startAddComponent(noteId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  addingComponentNoteId = addingComponentNoteId === noteId ? null : noteId;
+  inlineEditingComponent = null;
+  renderSubjectDetails(subject);
+}
+
+function cancelAddComponent() {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  addingComponentNoteId = null;
+  renderSubjectDetails(subject);
+}
+
+function saveNewComponent(noteId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const note = subject.notes.find((item) => item.id === noteId);
+  if (!note || note.type !== "control") return;
+
+  const titleInput = els.notesList.querySelector(`[data-new-component-title="${noteId}"]`);
+  const scoreInput = els.notesList.querySelector(`[data-new-component-score="${noteId}"]`);
+  const title = titleInput ? titleInput.value.trim() : "";
+  const score = scoreInput ? Number(scoreInput.value) : NaN;
+  if (!title || Number.isNaN(score)) return;
+
+  note.components = Array.isArray(note.components) ? note.components : [];
+  note.components.push({ id: createId(), title, score });
+  addingComponentNoteId = null;
+  refreshActiveSubjectDetails();
+}
+
+function startInlineEditComponent(noteId, componentId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  inlineEditingComponent = { noteId, componentId };
+  addingComponentNoteId = null;
+  renderSubjectDetails(subject);
+}
+
+function cancelInlineComponentEdit() {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  inlineEditingComponent = null;
+  renderSubjectDetails(subject);
+}
+
+function saveInlineComponent(noteId, componentId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const note = subject.notes.find((item) => item.id === noteId);
+  if (!note || !Array.isArray(note.components)) return;
+  const component = note.components.find((item) => item.id === componentId);
+  if (!component) return;
+
+  const titleInput = els.notesList.querySelector(`[data-component-title-input="${componentId}"]`);
+  const scoreInput = els.notesList.querySelector(`[data-component-score-input="${componentId}"]`);
+  const title = titleInput ? titleInput.value.trim() : "";
+  const score = scoreInput ? Number(scoreInput.value) : NaN;
+  if (!title || Number.isNaN(score)) return;
+
+  component.title = title;
+  component.score = score;
+  inlineEditingComponent = null;
+  refreshActiveSubjectDetails();
+}
+
+function deleteSavedComponent(noteId, componentId) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const note = subject.notes.find((item) => item.id === noteId);
+  if (!note || !Array.isArray(note.components)) return;
+  if (!confirm("Eliminar este componente?")) return;
+  note.components = note.components.filter((item) => item.id !== componentId);
+  if (inlineEditingComponent && inlineEditingComponent.componentId === componentId) {
+    inlineEditingComponent = null;
+  }
+  refreshActiveSubjectDetails();
+}
+
+function setComponentDiscarded(noteId, componentId, discarded) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const note = subject.notes.find((item) => item.id === noteId);
+  if (!note || !Array.isArray(note.components)) return;
+  const component = note.components.find((item) => item.id === componentId);
+  if (!component) return;
+  component.discarded = discarded;
+  if (discarded && inlineEditingComponent && inlineEditingComponent.componentId === componentId) {
+    inlineEditingComponent = null;
+  }
+  refreshActiveSubjectDetails();
+}
+
+function setNoteDiscarded(noteId, discarded) {
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const note = subject.notes.find((item) => item.id === noteId);
+  if (!note) return;
+  note.discarded = discarded;
+  if (discarded) {
+    if (inlineEditingNoteId === noteId) inlineEditingNoteId = null;
+    if (addingComponentNoteId === noteId) addingComponentNoteId = null;
+    if (inlineEditingComponent && inlineEditingComponent.noteId === noteId) inlineEditingComponent = null;
+  }
+  refreshActiveSubjectDetails();
+}
+
+function handleSavedComponentDragStart(event) {
+  const row = event.currentTarget;
+  if (row.dataset.dragReady !== "true") {
+    event.preventDefault();
     return;
   }
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", JSON.stringify({
+    noteId: row.dataset.noteId,
+    componentId: row.dataset.noteComponent,
+  }));
+  row.classList.add("is-dragging");
+}
 
-  els.controlList.innerHTML = "";
-  controlItems.forEach((item) => {
-    const row = document.createElement("div");
-    row.className = "control-item";
-    row.innerHTML = `
-      <span>${item.title}</span>
-      <div class="control-actions">
-        <strong>${item.score.toFixed(2)}</strong>
-        <button class="ghost" type="button" data-control-edit="${item.id}">Editar</button>
-        <button class="ghost danger" type="button" data-control-delete="${item.id}">Eliminar</button>
-      </div>
-    `;
-    els.controlList.appendChild(row);
-  });
+function handleSavedComponentDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  const row = event.currentTarget;
+  const rect = row.getBoundingClientRect();
+  const isAfter = event.clientY > rect.top + rect.height / 2;
+  row.classList.toggle("is-drag-over-before", !isAfter);
+  row.classList.toggle("is-drag-over-after", isAfter);
+}
 
-  els.controlList.querySelectorAll("[data-control-edit]").forEach((button) => {
-    button.addEventListener("click", () => startEditControl(button.dataset.controlEdit));
+function handleSavedComponentDragLeave(event) {
+  event.currentTarget.classList.remove("is-drag-over-before", "is-drag-over-after");
+}
+
+function handleSavedComponentDrop(event) {
+  event.preventDefault();
+  let payload = {};
+  try {
+    payload = JSON.parse(event.dataTransfer.getData("text/plain") || "{}");
+  } catch (err) {
+    return;
+  }
+  const targetNoteId = event.currentTarget.dataset.noteId;
+  const targetComponentId = event.currentTarget.dataset.noteComponent;
+  if (payload.noteId !== targetNoteId) return;
+  const rect = event.currentTarget.getBoundingClientRect();
+  const position = event.clientY > rect.top + rect.height / 2 ? "after" : "before";
+  reorderSavedComponents(targetNoteId, payload.componentId, targetComponentId, position);
+}
+
+function handleSavedComponentDragEnd() {
+  els.notesList.querySelectorAll(".note-component").forEach((row) => {
+    row.classList.remove("is-dragging", "is-drag-over-before", "is-drag-over-after");
+    delete row.dataset.dragReady;
   });
-  els.controlList.querySelectorAll("[data-control-delete]").forEach((button) => {
-    button.addEventListener("click", () => deleteControlItem(button.dataset.controlDelete));
-  });
+}
+
+function reorderSavedComponents(noteId, sourceId, targetId, position) {
+  if (!noteId || !sourceId || !targetId || sourceId === targetId) return;
+  const subject = getActiveSubject();
+  if (!subject) return;
+  const note = subject.notes.find((item) => item.id === noteId);
+  if (!note || !Array.isArray(note.components)) return;
+  if (!reorderComponents(note.components, sourceId, targetId, position)) return;
+  saveSubjects();
+  renderSubjectDetails(subject);
+  calculateOverall();
+}
+
+function reorderComponents(list, sourceId, targetId, position) {
+  if (!sourceId || !targetId || sourceId === targetId) return false;
+  const sourceIndex = list.findIndex((item) => item.id === sourceId);
+  const targetIndex = list.findIndex((item) => item.id === targetId);
+  if (sourceIndex === -1 || targetIndex === -1) return false;
+
+  const [moved] = list.splice(sourceIndex, 1);
+  let insertIndex = list.findIndex((item) => item.id === targetId);
+  if (insertIndex === -1) return false;
+  if (position === "after") insertIndex += 1;
+  list.splice(insertIndex, 0, moved);
+  return true;
 }
 
 function resetNoteForm() {
@@ -486,26 +973,42 @@ function resetNoteForm() {
   els.noteWeight.value = 0;
   els.noteDate.value = "";
   editingNoteId = null;
-  els.saveNote.textContent = "Agregar nota";
-  els.cancelEdit.classList.add("is-hidden");
-  els.controlTitle.value = "";
-  els.controlScore.value = "";
-  editingControlId = null;
-  els.addControl.textContent = "Agregar componente";
-  controlItems = [];
-  renderControlList();
+  inlineEditingNoteId = null;
+  addingComponentNoteId = null;
+  inlineEditingComponent = null;
+  els.saveNote.textContent = "Crear nota";
+  els.addNoteToggle.textContent = "Agregar nota";
+  els.noteForm.classList.add("is-hidden");
   toggleControlBox();
 }
 
 function toggleControlBox() {
   const type = els.noteType.value;
+  const noteScoreLabel = els.noteScore.closest("label");
   if (type === "control") {
-    els.controlBox.classList.add("is-visible");
     els.noteScore.value = "";
     els.noteScore.disabled = true;
+    if (noteScoreLabel) noteScoreLabel.style.display = "none";
   } else {
-    els.controlBox.classList.remove("is-visible");
     els.noteScore.disabled = false;
+    if (noteScoreLabel) noteScoreLabel.style.display = "grid";
+  }
+}
+
+function openNoteForm() {
+  inlineEditingNoteId = null;
+  inlineEditingComponent = null;
+  addingComponentNoteId = null;
+  els.noteForm.classList.remove("is-hidden");
+  els.addNoteToggle.textContent = "Agregar otra nota";
+  els.noteTitle.focus();
+}
+
+function handleAddNoteToggle() {
+  if (els.noteForm.classList.contains("is-hidden")) {
+    openNoteForm();
+  } else {
+    resetNoteForm();
   }
 }
 
@@ -518,6 +1021,7 @@ function handleSubjectSubmit(event) {
     group: els.subjectGroup.value.trim(),
     color: els.subjectColor.value,
     mode: els.subjectMode.value,
+    credits: 1,
     notes: [],
     files: [],
   };
@@ -528,6 +1032,7 @@ function handleSubjectSubmit(event) {
   els.subjectColor.value = "#1f4c7a";
   updateGroupFilter();
   updateEventSubjects();
+  renderCreditsSettings();
   saveSubjects();
   renderSubjects();
   calculateOverall();
@@ -545,14 +1050,9 @@ function handleNoteSubmit(event) {
     type,
     score: type === "solid" ? Number(els.noteScore.value) : 0,
     weight: subject.mode === "percent" ? Number(els.noteWeight.value) : 0,
-    components: type === "control" ? controlItems.map((item) => ({ ...item })) : [],
+    components: type === "control" ? [] : [],
     date: els.noteDate.value,
   };
-
-  if (type === "control" && !newNote.components.length) {
-    alert("Agrega al menos un componente para la nota control.");
-    return;
-  }
 
   if (editingNoteId) {
     const index = subject.notes.findIndex((note) => note.id === editingNoteId);
@@ -566,65 +1066,6 @@ function handleNoteSubmit(event) {
   renderSubjectDetails(subject);
   calculateOverall();
   resetNoteForm();
-}
-
-function handleAddControl() {
-  const title = els.controlTitle.value.trim();
-  const score = Number(els.controlScore.value);
-  if (!title || Number.isNaN(score)) return;
-
-  if (editingControlId) {
-    const index = controlItems.findIndex((item) => item.id === editingControlId);
-    if (index !== -1) {
-      controlItems[index] = { id: editingControlId, title, score };
-    }
-    editingControlId = null;
-    els.addControl.textContent = "Agregar componente";
-  } else {
-    controlItems.push({ id: createId(), title, score });
-  }
-  els.controlTitle.value = "";
-  els.controlScore.value = "";
-  renderControlList();
-}
-
-function startEditNote(noteId) {
-  const subject = getActiveSubject();
-  if (!subject) return;
-  const note = subject.notes.find((item) => item.id === noteId);
-  if (!note) return;
-
-  editingNoteId = noteId;
-  els.noteTitle.value = note.title;
-  els.noteType.value = note.type;
-  els.noteScore.value = note.type === "solid" ? note.score : "";
-  els.noteWeight.value = subject.mode === "percent" ? note.weight || 0 : 0;
-  els.noteDate.value = note.date || "";
-  controlItems = note.type === "control" ? note.components.map((item) => ({ ...item })) : [];
-  renderControlList();
-  toggleControlBox();
-  els.saveNote.textContent = "Guardar cambios";
-  els.cancelEdit.classList.remove("is-hidden");
-}
-
-function startEditControl(controlId) {
-  const item = controlItems.find((entry) => entry.id === controlId);
-  if (!item) return;
-  editingControlId = controlId;
-  els.controlTitle.value = item.title;
-  els.controlScore.value = item.score;
-  els.addControl.textContent = "Guardar componente";
-}
-
-function deleteControlItem(controlId) {
-  controlItems = controlItems.filter((item) => item.id !== controlId);
-  if (editingControlId === controlId) {
-    editingControlId = null;
-    els.controlTitle.value = "";
-    els.controlScore.value = "";
-    els.addControl.textContent = "Agregar componente";
-  }
-  renderControlList();
 }
 
 function renderEvents() {
@@ -701,8 +1142,7 @@ function renderCalendar() {
 
 function renderEventList() {
   const today = getToday();
-  const upcomingEvents = sortEvents(events.filter((event) => event.date && event.date >= today));
-  const visibleEvents = upcomingEvents.length ? upcomingEvents : sortEvents(events);
+  const visibleEvents = sortEvents(events.filter((event) => event.date && event.date >= today));
 
   if (!visibleEvents.length) {
     els.eventsList.innerHTML = "<div class=\"empty\">No hay proximos eventos.</div>";
@@ -740,18 +1180,19 @@ function renderEventList() {
 }
 
 function renderNextEvent() {
-  if (!events.length) {
+  const today = getToday();
+  const sorted = sortEvents(events.filter((event) => event.date && event.date >= today));
+  const next = sorted[0];
+
+  if (!next) {
     els.nextEventName.textContent = "Sin eventos";
-    els.nextEventMeta.textContent = "Agrega un evento";
+    els.nextEventMeta.textContent = events.length ? "No hay eventos proximos" : "Agrega un evento";
     return;
   }
 
-  const today = getToday();
-  const sorted = sortEvents(events);
-  const next = sorted.find((event) => event.date && event.date >= today) || sorted[0];
   const timeText = next.time ? ` · ${next.time}` : "";
-  els.nextEventName.textContent = next ? next.name : "Sin eventos";
-  els.nextEventMeta.textContent = next ? `${next.subject} · ${formatDate(next.date)}${timeText}` : "Agrega un evento";
+  els.nextEventName.textContent = next.name;
+  els.nextEventMeta.textContent = `${next.subject} · ${formatDate(next.date)}${timeText}`;
 }
 
 function updateEventSubjects() {
@@ -838,15 +1279,27 @@ function renderFiles(subject) {
   subject.files.forEach((file) => {
     const row = document.createElement("div");
     row.className = "file-item";
+    row.draggable = true;
+    row.dataset.fileId = file.id;
     const displayName = file.displayName || file.name;
     row.innerHTML = `
+      <span class="drag-handle" role="button" tabindex="0" draggable="true" aria-label="Arrastrar archivo" title="Arrastrar archivo">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
       <div class="file-icon">${iconForFile(file.name)}</div>
       <div class="file-meta">
-        <h4>${displayName}</h4>
+        <h4>${escapeHtml(displayName)}</h4>
         <p>Subido: ${formatDate(file.uploadedAt)}</p>
       </div>
       <div class="file-actions">
-        <a class="ghost" href="${file.data}" download="${file.name}">Descargar</a>
+        <a class="download-icon" href="${file.data}" download="${file.name}" aria-label="Descargar archivo">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M11 4h2v8l3-3 1.4 1.4L12 15.8l-5.4-5.4L8 9l3 3V4Z"></path>
+            <path d="M5 18h14v2H5v-2Z"></path>
+          </svg>
+        </a>
         <button class="ghost" type="button" data-file-edit="${file.id}">Editar</button>
         <button class="ghost danger" type="button" data-file-delete="${file.id}">Eliminar</button>
       </div>
@@ -860,6 +1313,66 @@ function renderFiles(subject) {
   els.filesList.querySelectorAll("[data-file-delete]").forEach((button) => {
     button.addEventListener("click", () => deleteFile(button.dataset.fileDelete));
   });
+  els.filesList.querySelectorAll(".file-item").forEach((row) => {
+    const handle = row.querySelector(".drag-handle");
+    handle.addEventListener("pointerdown", () => {
+      row.dataset.dragReady = "true";
+    });
+    row.addEventListener("dragstart", handleFileDragStart);
+    row.addEventListener("dragover", handleFileDragOver);
+    row.addEventListener("dragleave", handleFileDragLeave);
+    row.addEventListener("drop", handleFileDrop);
+    row.addEventListener("dragend", handleFileDragEnd);
+  });
+}
+
+function handleFileDragStart(event) {
+  const row = event.currentTarget;
+  if (row.dataset.dragReady !== "true") {
+    event.preventDefault();
+    return;
+  }
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", row.dataset.fileId);
+  row.classList.add("is-dragging");
+}
+
+function handleFileDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  const row = event.currentTarget;
+  const rect = row.getBoundingClientRect();
+  const isAfter = event.clientY > rect.top + rect.height / 2;
+  row.classList.toggle("is-drag-over-before", !isAfter);
+  row.classList.toggle("is-drag-over-after", isAfter);
+}
+
+function handleFileDragLeave(event) {
+  event.currentTarget.classList.remove("is-drag-over-before", "is-drag-over-after");
+}
+
+function handleFileDrop(event) {
+  event.preventDefault();
+  const sourceId = event.dataTransfer.getData("text/plain");
+  const targetId = event.currentTarget.dataset.fileId;
+  const rect = event.currentTarget.getBoundingClientRect();
+  const position = event.clientY > rect.top + rect.height / 2 ? "after" : "before";
+  reorderFiles(sourceId, targetId, position);
+}
+
+function handleFileDragEnd() {
+  els.filesList.querySelectorAll(".file-item").forEach((row) => {
+    row.classList.remove("is-dragging", "is-drag-over-before", "is-drag-over-after");
+    delete row.dataset.dragReady;
+  });
+}
+
+function reorderFiles(sourceId, targetId, position) {
+  const subject = getActiveSubject();
+  if (!subject || !Array.isArray(subject.files)) return;
+  if (!reorderComponents(subject.files, sourceId, targetId, position)) return;
+  saveSubjects();
+  renderFiles(subject);
 }
 
 function iconForFile(filename) {
@@ -966,6 +1479,12 @@ function resetFileForm() {
   editingFileId = null;
   els.saveFile.textContent = "Subir archivo";
   els.cancelFileEdit.classList.add("is-hidden");
+  updateFilePickerLabel();
+}
+
+function updateFilePickerLabel() {
+  const file = els.fileInput.files[0];
+  els.filePickerLabel.textContent = file ? file.name : "Seleccionar archivo";
 }
 
 function renderLinks() {
@@ -1113,6 +1632,103 @@ function deleteLink() {
   closeLinkModal();
 }
 
+function renderCreditsSettings() {
+  els.weightedAverages.checked = settings.weightedAverages;
+  els.creditsStatus.textContent = settings.weightedAverages
+    ? "El promedio general usa la formula: suma(promedio x creditos) / suma(creditos)."
+    : "Cada materia cuenta igual mientras esta opcion este desactivada.";
+
+  if (!subjects.length) {
+    els.creditsList.innerHTML = "<div class=\"empty\">Crea materias para asignar creditos.</div>";
+    return;
+  }
+
+  const groups = subjects.reduce((acc, subject) => {
+    const groupName = subject.group || "Sin grupo";
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(subject);
+    return acc;
+  }, {});
+
+  els.creditsList.innerHTML = "";
+  Object.keys(groups)
+    .sort()
+    .forEach((groupName) => {
+      const groupBox = document.createElement("div");
+      groupBox.className = "credits-group";
+      const rows = groups[groupName]
+        .map((subject) => `
+          <label class="credit-row">
+            <span>
+              <strong>${escapeHtml(subject.name)}</strong>
+              <small>${escapeHtml(subject.teacher || "Docente sin registrar")}</small>
+            </span>
+            <input type="number" min="1" step="1" value="${normalizeCredits(subject.credits)}" data-credit-subject="${escapeHtml(subject.id)}" aria-label="Creditos de ${escapeHtml(subject.name)}">
+          </label>
+        `)
+        .join("");
+      groupBox.innerHTML = `
+        <h4>${escapeHtml(groupName)}</h4>
+        ${rows}
+      `;
+      els.creditsList.appendChild(groupBox);
+    });
+}
+
+function renderPassingSettings() {
+  els.passingEnabled.checked = settings.passingEnabled;
+  els.passingScore.value = settings.passingScore;
+  els.failColor.value = settings.failColor;
+  els.passColor.value = settings.passColor;
+  els.colorDashboard.checked = settings.colorDashboard;
+  els.colorSubjects.checked = settings.colorSubjects;
+  els.colorComponents.checked = settings.colorComponents;
+  els.passingStatus.textContent = settings.passingEnabled
+    ? `Notas menores a ${settings.passingScore} usan reprobado; iguales o mayores usan aprobado.`
+    : "Al activar, las notas menores al minimo usan el color reprobado.";
+}
+
+function refreshScoreDisplays() {
+  calculateOverall();
+  renderSubjects();
+  const subject = getActiveSubject();
+  if (subject) renderSubjectDetails(subject);
+}
+
+function handleWeightedAveragesToggle() {
+  settings.weightedAverages = els.weightedAverages.checked;
+  saveSettings();
+  renderCreditsSettings();
+  calculateOverall();
+}
+
+function handleCreditChange(event) {
+  const input = event.target.closest("[data-credit-subject]");
+  if (!input) return;
+  const subject = subjects.find((item) => item.id === input.dataset.creditSubject);
+  if (!subject) return;
+
+  subject.credits = normalizeCredits(input.value);
+  input.value = subject.credits;
+  saveSubjects();
+  calculateOverall();
+  renderSubjects();
+}
+
+function handlePassingSettingsChange() {
+  const score = Number(els.passingScore.value);
+  settings.passingEnabled = els.passingEnabled.checked;
+  settings.passingScore = Number.isFinite(score) ? score : 55;
+  settings.failColor = normalizeColor(els.failColor.value, defaultFailColor);
+  settings.passColor = normalizeColor(els.passColor.value, defaultPassColor);
+  settings.colorDashboard = els.colorDashboard.checked;
+  settings.colorSubjects = els.colorSubjects.checked;
+  settings.colorComponents = els.colorComponents.checked;
+  saveSettings();
+  renderPassingSettings();
+  refreshScoreDisplays();
+}
+
 function handleModeChange() {
   const subject = getActiveSubject();
   if (!subject) return;
@@ -1159,6 +1775,9 @@ function deleteNote(noteId) {
   if (!subject) return;
   if (!confirm("Eliminar esta nota?")) return;
   subject.notes = subject.notes.filter((note) => note.id !== noteId);
+  if (inlineEditingNoteId === noteId) inlineEditingNoteId = null;
+  if (addingComponentNoteId === noteId) addingComponentNoteId = null;
+  if (inlineEditingComponent && inlineEditingComponent.noteId === noteId) inlineEditingComponent = null;
   saveSubjects();
   renderSubjectDetails(subject);
   calculateOverall();
@@ -1173,6 +1792,7 @@ function deleteSubject() {
   closeModal();
   updateGroupFilter();
   updateEventSubjects();
+  renderCreditsSettings();
   renderSubjects();
   calculateOverall();
 }
@@ -1203,10 +1823,11 @@ function handleLogoReset() {
 function handleExport() {
   const payload = JSON.stringify(
     {
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       theme: document.body.getAttribute("data-theme") || "light",
       logo: localStorage.getItem(logoKey) || "",
+      settings,
       subjects,
       links,
       events,
@@ -1236,13 +1857,15 @@ function handleImport(event) {
       const nextSubjects = Array.isArray(parsed) ? parsed : parsed.subjects;
       const nextLinks = Array.isArray(parsed) ? [] : parsed.links || [];
       const nextEvents = Array.isArray(parsed) ? [] : parsed.events || [];
+      const nextSettings = Array.isArray(parsed) ? {} : parsed.settings || {};
 
       if (!Array.isArray(nextSubjects) || !Array.isArray(nextLinks) || !Array.isArray(nextEvents)) {
         throw new Error("Formato invalido");
       }
-      subjects = nextSubjects;
+      subjects = nextSubjects.map(normalizeSubject);
       links = nextLinks;
       events = nextEvents;
+      settings = normalizeSettings(nextSettings);
       if (!Array.isArray(parsed) && parsed.theme) {
         setTheme(parsed.theme === "dark" ? "dark" : "light");
       }
@@ -1252,9 +1875,12 @@ function handleImport(event) {
       saveSubjects();
       saveLinks();
       saveEvents();
+      saveSettings();
       closeModal();
       updateGroupFilter();
       updateEventSubjects();
+      renderCreditsSettings();
+      renderPassingSettings();
       renderSubjects();
       calculateOverall();
       renderLinks();
@@ -1271,7 +1897,7 @@ function handleImport(event) {
 
 els.subjectForm.addEventListener("submit", handleSubjectSubmit);
 els.noteForm.addEventListener("submit", handleNoteSubmit);
-els.addControl.addEventListener("click", handleAddControl);
+els.addNoteToggle.addEventListener("click", handleAddNoteToggle);
 els.noteType.addEventListener("change", toggleControlBox);
 els.cancelEdit.addEventListener("click", resetNoteForm);
 els.modalClose.addEventListener("click", closeModal);
@@ -1294,6 +1920,15 @@ els.configModal.addEventListener("click", (event) => {
 });
 els.logoFile.addEventListener("change", handleLogoChange);
 els.resetLogo.addEventListener("click", handleLogoReset);
+els.weightedAverages.addEventListener("change", handleWeightedAveragesToggle);
+els.creditsList.addEventListener("change", handleCreditChange);
+els.passingEnabled.addEventListener("change", handlePassingSettingsChange);
+els.passingScore.addEventListener("change", handlePassingSettingsChange);
+els.failColor.addEventListener("input", handlePassingSettingsChange);
+els.passColor.addEventListener("input", handlePassingSettingsChange);
+els.colorDashboard.addEventListener("change", handlePassingSettingsChange);
+els.colorSubjects.addEventListener("change", handlePassingSettingsChange);
+els.colorComponents.addEventListener("change", handlePassingSettingsChange);
 els.exportData.addEventListener("click", handleExport);
 els.importFile.addEventListener("change", handleImport);
 els.updatesOpen.addEventListener("click", openUpdates);
@@ -1313,6 +1948,7 @@ els.linkForm.addEventListener("submit", handleLinkSubmit);
 els.linkFile.addEventListener("change", handleLinkFileChange);
 els.deleteLink.addEventListener("click", deleteLink);
 els.fileForm.addEventListener("submit", handleFileSubmit);
+els.fileInput.addEventListener("change", updateFilePickerLabel);
 els.cancelFileEdit.addEventListener("click", resetFileForm);
 els.prevMonth.addEventListener("click", () => {
   calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
@@ -1331,9 +1967,10 @@ initTheme();
 initLogo();
 updateGroupFilter();
 updateEventSubjects();
+renderCreditsSettings();
+renderPassingSettings();
 renderSubjects();
 calculateOverall();
 toggleControlBox();
-renderControlList();
 renderLinks();
 renderEvents();

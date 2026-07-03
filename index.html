@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lectum</title>
-  <link rel="icon" href="img/minilogo.png" type="image/png">
+  <link rel="icon" href="img/newlogolec.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="app" id="appRoot">
     <header class="topbar">
       <div class="brand">
-        <img class="logo" id="brandLogo" src="img/logo (2).png" alt="Logo">
+        <img class="logo" id="brandLogo" src="img/newlogolec.png" alt="Logo">
         <div>
           <p class="eyebrow">Dashboard academico</p>
           <h1>Lectum</h1>
@@ -56,9 +56,9 @@
             <span id="overallSubjectsFoot">0 materias</span>
           </article>
           <article class="summary-card">
-            <p>Notas registradas</p>
+            <p>Materia con mas creditos</p>
             <h2 id="overallNotes">0</h2>
-            <span id="overallNotesFoot">0 notas totales</span>
+            <span id="overallNotesFoot">Sin materias aun</span>
           </article>
           <article class="summary-card">
             <p>Promedio mas bajo</p>
@@ -237,7 +237,11 @@
         <div id="notesList" class="notes-list"></div>
       </div>
 
-      <form id="noteForm" class="note-form">
+      <div class="note-add-bar">
+        <button class="primary" type="button" id="addNoteToggle">Agregar nota</button>
+      </div>
+
+      <form id="noteForm" class="note-form is-hidden">
         <div class="row">
           <label>
             Nombre de la nota
@@ -255,7 +259,7 @@
         <div class="row" id="solidRow">
           <label>
             Nota
-            <input type="number" id="noteScore" min="0" max="20" step="0.1">
+            <input type="number" id="noteScore" min="0" step="0.1">
           </label>
           <label id="weightLabel">
             Porcentaje (%)
@@ -269,29 +273,9 @@
           </label>
         </div>
 
-        <div class="control-box" id="controlBox">
-          <div class="control-head">
-            <p class="control-title">Componentes de la nota control</p>
-            <span class="tooltip" data-tooltip="Nota control: se calcula desde varias notas pequeñas">?</span>
-            <span class="tooltip" data-tooltip="Nota solida: una sola nota directa">i</span>
-          </div>
-          <div class="row">
-            <label>
-              Nombre componente
-              <input type="text" id="controlTitle" placeholder="Control 1">
-            </label>
-            <label>
-              Nota componente
-              <input type="number" id="controlScore" min="0" max="20" step="0.1">
-            </label>
-            <button type="button" class="ghost" id="addControl">Agregar componente</button>
-          </div>
-          <div id="controlList" class="control-list"></div>
-        </div>
-
         <div class="form-actions">
-          <button class="primary" type="submit" id="saveNote">Agregar nota</button>
-          <button class="ghost is-hidden" type="button" id="cancelEdit">Cancelar edicion</button>
+          <button class="primary" type="submit" id="saveNote">Crear nota</button>
+          <button class="ghost" type="button" id="cancelEdit">Cancelar</button>
         </div>
       </form>
 
@@ -303,12 +287,12 @@
           </div>
         </div>
         <form id="fileForm" class="file-form">
-          <label>
-            Nombre del archivo
+          <div class="file-field file-name-field">
+            <span>Nombre del archivo</span>
             <input type="text" id="fileName" placeholder="Apuntes semana 3" required>
-          </label>
-          <label>
-            Archivo
+          </div>
+          <label class="file-picker">
+            <span id="filePickerLabel">Seleccionar archivo</span>
             <input type="file" id="fileInput">
           </label>
           <div class="form-actions">
@@ -331,7 +315,7 @@
       </div>
       <div class="config-actions">
         <div class="logo-config">
-          <img id="logoPreview" src="img/logo (2).png" alt="Logo actual">
+          <img id="logoPreview" src="img/newlogolec.png" alt="Logo actual">
           <div>
             <h4>Logo del dashboard</h4>
             <p class="muted small">Usa el logo de tu universidad o una imagen propia.</p>
@@ -342,6 +326,49 @@
           <input type="file" id="logoFile" accept="image/*">
         </label>
         <button class="ghost" type="button" id="resetLogo">Restaurar logo original</button>
+        <div class="credits-config">
+          <label class="checkline">
+            <input type="checkbox" id="weightedAverages">
+            Usar creditos para el promedio por grupo
+          </label>
+          <p class="muted small" id="creditsStatus">Cada materia cuenta igual mientras esta opcion este desactivada.</p>
+          <div id="creditsList" class="credits-list"></div>
+        </div>
+        <div class="credits-config">
+          <label class="checkline">
+            <input type="checkbox" id="passingEnabled">
+            Colorear notas por aprobacion
+          </label>
+          <div class="passing-grid">
+            <label>
+              Nota aprobatoria
+              <input type="number" id="passingScore" min="0" step="0.1" value="55">
+            </label>
+            <label>
+              Reprobado
+              <input type="color" id="failColor" value="#fff1f2">
+            </label>
+            <label>
+              Aprobado
+              <input type="color" id="passColor" value="#f0fdf4">
+            </label>
+          </div>
+          <div class="passing-targets">
+            <label class="checkline">
+              <input type="checkbox" id="colorDashboard">
+              Dashboard
+            </label>
+            <label class="checkline">
+              <input type="checkbox" id="colorSubjects">
+              Materias
+            </label>
+            <label class="checkline">
+              <input type="checkbox" id="colorComponents">
+              Notas y componentes
+            </label>
+          </div>
+          <p class="muted small" id="passingStatus">Al activar, las notas menores al minimo usan el color reprobado.</p>
+        </div>
         <button class="primary" type="button" id="exportData">Exportar JSON</button>
         <label class="file-input">
           Importar JSON
@@ -361,6 +388,48 @@
         <p class="muted">Notas de las actualizaciones recientes.</p>
       </div>
       <div class="updates-list">
+        <article class="update-item">
+          <div class="update-head">
+            <h4>33ju26mi</h4>
+            <span>3 julio 2026</span>
+          </div>
+          <p class="update-summary">Mejoras importantes en cálculos, configuración, notas, componentes y archivos de materias.</p>
+          <ul class="update-changes">
+            <li>
+              <strong>Importación de eventos corregida</strong>
+              <span>Se solucionó el problema que hacía aparecer eventos pasados dentro de la sección de próximos eventos al importar un respaldo JSON.</span>
+            </li>
+            <li>
+              <strong>Ponderaciones por creditos</strong>
+              <span>Configuración ahora permite activar créditos por materia para que cada ramo afecte el promedio del grupo según su peso real.</span>
+            </li>
+            <li>
+              <strong>Notas solidas sin limite artificial</strong>
+              <span>Se corrigió el límite que impedía registrar notas sólidas mayores a 20.</span>
+            </li>
+            <li>
+              <strong>Materia con mayor peso</strong>
+              <span>El contador de notas registradas fue reemplazado por una tarjeta que muestra la materia con más créditos del grupo correspondiente.</span>
+            </li>
+            <li>
+              <strong>Nota aprobatoria configurable</strong>
+              <span>Configuración permite definir una nota de aprobación, elegir colores para aprobadas y reprobadas, y decidir si se aplican al dashboard, materias o notas y componentes.</span>
+            </li>
+            <li>
+              <strong>Notas más visuales y ágiles</strong>
+              <span>Las notas y componentes ahora se muestran de forma más completa, se pueden editar en el mismo lugar, reordenar y descartar sin borrarlos definitivamente.</span>
+            </li>
+            <li>
+              <strong>Creación de notas mejorada</strong>
+              <span>Agregar notas ahora usa un flujo desplegable más cómodo, y los componentes de notas control se agregan directamente desde la tarjeta de la nota.</span>
+            </li>
+            <li>
+              <strong>Archivos de materia renovados</strong>
+              <span>La sección de archivos tiene un diseño más amigable, muestra el archivo seleccionado, usa ícono de descarga y permite reordenar materiales.</span>
+            </li>
+          </ul>
+        </article>
+
         <article class="update-item">
           <div class="update-head">
             <h4>16ma26me</h4>
