@@ -5,6 +5,8 @@ const eventsKey = "lectum-events-v1";
 const logoKey = "lectum-logo-v1";
 const settingsKey = "lectum-settings-v1";
 const selectedGroupKey = "lectum-selected-group-v1";
+const filesDatabaseName = "lectum-files-v1";
+const filesStoreName = "files";
 const defaultLogoSrc = "img/newlogolec.png";
 const defaultFailColor = "#fff1f2";
 const defaultPassColor = "#f0fdf4";
@@ -114,6 +116,10 @@ const els = {
   fileName: document.getElementById("fileName"),
   saveFile: document.getElementById("saveFile"),
   cancelFileEdit: document.getElementById("cancelFileEdit"),
+  filePreviewModal: document.getElementById("filePreviewModal"),
+  filePreviewClose: document.getElementById("filePreviewClose"),
+  filePreviewTitle: document.getElementById("filePreviewTitle"),
+  filePreviewBody: document.getElementById("filePreviewBody"),
   noteTitle: document.getElementById("noteTitle"),
   noteType: document.getElementById("noteType"),
   noteScore: document.getElementById("noteScore"),
@@ -137,6 +143,7 @@ let editingEventId = null;
 let calendarDate = new Date();
 let selectedEventDate = getToday();
 let settings = loadSettings();
+let filesMigrationPromise = Promise.resolve();
 
 function formatDate(dateValue) {
   if (!dateValue) return "-";
@@ -302,6 +309,75 @@ function saveEvents() {
 
 function saveSettings() {
   localStorage.setItem(settingsKey, JSON.stringify(settings));
+}
+
+function openFilesDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(filesDatabaseName, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(filesStoreName)) {
+        request.result.createObjectStore(filesStoreName);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function setStoredFileData(fileId, data) {
+  const database = await openFilesDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(filesStoreName, "readwrite");
+    transaction.objectStore(filesStoreName).put(data, fileId);
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function getStoredFileData(file) {
+  if (file.data) return file.data;
+  const database = await openFilesDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(filesStoreName, "readonly");
+    const request = transaction.objectStore(filesStoreName).get(file.id);
+    request.onsuccess = () => resolve(request.result || "");
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => database.close();
+  });
+}
+
+async function deleteStoredFileData(fileId) {
+  const database = await openFilesDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(filesStoreName, "readwrite");
+    transaction.objectStore(filesStoreName).delete(fileId);
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function migrateFilesToIndexedDb() {
+  const filesWithInlineData = subjects.flatMap((subject) => subject.files || []).filter((file) => file.data);
+  if (!filesWithInlineData.length) return;
+  try {
+    await Promise.all(filesWithInlineData.map((file) => setStoredFileData(file.id, file.data)));
+    filesWithInlineData.forEach((file) => delete file.data);
+    saveSubjects();
+  } catch (error) {
+    console.error("No fue posible migrar los archivos a IndexedDB.", error);
+  }
 }
 
 function setTheme(theme) {
@@ -1337,6 +1413,13 @@ function renderFiles(subject) {
     row.draggable = true;
     row.dataset.fileId = file.id;
     const displayName = file.displayName || file.name;
+    const previewButton = `<button class="ghost file-preview-button" type="button" data-file-preview="${file.id}" aria-label="Visualizar archivo" title="Visualizar archivo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+          <circle cx="12" cy="12" r="2.5"></circle>
+        </svg>
+        <span>Visualizar</span>
+      </button>`;
     row.innerHTML = `
       <span class="drag-handle" role="button" tabindex="0" draggable="true" aria-label="Arrastrar archivo" title="Arrastrar archivo">
         <span></span>
@@ -1349,12 +1432,13 @@ function renderFiles(subject) {
         <p>Subido: ${formatDate(file.uploadedAt)}</p>
       </div>
       <div class="file-actions">
-        <a class="download-icon" href="${file.data}" download="${file.name}" aria-label="Descargar archivo">
+        ${previewButton}
+        <button class="download-icon" type="button" data-file-download="${file.id}" aria-label="Descargar archivo" title="Descargar archivo">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M11 4h2v8l3-3 1.4 1.4L12 15.8l-5.4-5.4L8 9l3 3V4Z"></path>
             <path d="M5 18h14v2H5v-2Z"></path>
           </svg>
-        </a>
+        </button>
         <button class="ghost" type="button" data-file-edit="${file.id}">Editar</button>
         <button class="ghost danger" type="button" data-file-delete="${file.id}">Eliminar</button>
       </div>
@@ -1362,6 +1446,12 @@ function renderFiles(subject) {
     els.filesList.appendChild(row);
   });
 
+  els.filesList.querySelectorAll("[data-file-preview]").forEach((button) => {
+    button.addEventListener("click", () => openFilePreview(button.dataset.filePreview));
+  });
+  els.filesList.querySelectorAll("[data-file-download]").forEach((button) => {
+    button.addEventListener("click", () => downloadStoredFile(button.dataset.fileDownload));
+  });
   els.filesList.querySelectorAll("[data-file-edit]").forEach((button) => {
     button.addEventListener("click", () => startEditFile(button.dataset.fileEdit));
   });
@@ -1379,6 +1469,118 @@ function renderFiles(subject) {
     row.addEventListener("drop", handleFileDrop);
     row.addEventListener("dragend", handleFileDragEnd);
   });
+}
+
+function getFileExtension(filename = "") {
+  const parts = filename.toLowerCase().split(".");
+  return parts.length > 1 ? parts.pop() : "";
+}
+
+function getPreviewType(file) {
+  const type = (file.type || "").toLowerCase();
+  const extension = getFileExtension(file.name);
+  if ((type.startsWith("image/") && type !== "image/svg+xml") || ["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(extension)) return "image";
+  if (type === "application/pdf" || extension === "pdf") return "pdf";
+  if (type.startsWith("audio/") || ["mp3", "wav", "ogg", "m4a", "aac"].includes(extension)) return "audio";
+  if (type.startsWith("video/") || ["mp4", "webm", "ogv", "mov"].includes(extension)) return "video";
+  if (type.startsWith("text/") || ["txt", "csv", "md", "json", "log"].includes(extension)) return "text";
+  return "";
+}
+
+function canPreviewFile(file) {
+  return Boolean(file && getPreviewType(file));
+}
+
+function decodeTextDataUrl(dataUrl) {
+  const commaIndex = dataUrl.indexOf(",");
+  if (commaIndex === -1) return "";
+  const metadata = dataUrl.slice(0, commaIndex);
+  const payload = dataUrl.slice(commaIndex + 1);
+  if (!metadata.includes(";base64")) return decodeURIComponent(payload);
+  const bytes = Uint8Array.from(atob(payload), (character) => character.charCodeAt(0));
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+async function openFilePreview(fileId) {
+  const subject = getActiveSubject();
+  const file = subject && subject.files.find((item) => item.id === fileId);
+  if (!file) return;
+  if (!canPreviewFile(file)) {
+    alert("Este formato no admite vista previa en el navegador. Puedes descargar el archivo para abrirlo con su aplicación correspondiente.");
+    return;
+  }
+
+  let fileData;
+  try {
+    fileData = await getStoredFileData(file);
+  } catch (error) {
+    alert("No fue posible abrir el archivo guardado.");
+    return;
+  }
+  if (!fileData) {
+    alert("El contenido de este archivo no está disponible.");
+    return;
+  }
+
+  const previewType = getPreviewType(file);
+  const displayName = file.displayName || file.name;
+  els.filePreviewTitle.textContent = displayName;
+  els.filePreviewBody.innerHTML = "";
+
+  let preview;
+  if (previewType === "image") {
+    preview = document.createElement("img");
+    preview.src = fileData;
+    preview.alt = displayName;
+  } else if (previewType === "pdf") {
+    preview = document.createElement("iframe");
+    preview.src = fileData;
+    preview.title = displayName;
+  } else if (previewType === "audio") {
+    preview = document.createElement("audio");
+    preview.src = fileData;
+    preview.controls = true;
+  } else if (previewType === "video") {
+    preview = document.createElement("video");
+    preview.src = fileData;
+    preview.controls = true;
+  } else {
+    preview = document.createElement("pre");
+    preview.className = "file-preview-text";
+    try {
+      preview.textContent = decodeTextDataUrl(fileData);
+    } catch (error) {
+      preview.textContent = "No fue posible interpretar el contenido de este archivo.";
+    }
+  }
+
+  els.filePreviewBody.appendChild(preview);
+  els.filePreviewModal.classList.add("is-open");
+  els.filePreviewModal.setAttribute("aria-hidden", "false");
+}
+
+async function downloadStoredFile(fileId) {
+  const subject = getActiveSubject();
+  const file = subject && subject.files.find((item) => item.id === fileId);
+  if (!file) return;
+  try {
+    const fileData = await getStoredFileData(file);
+    if (!fileData) throw new Error("Contenido no disponible");
+    const link = document.createElement("a");
+    link.href = fileData;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (error) {
+    alert("No fue posible descargar el archivo guardado.");
+  }
+}
+
+function closeFilePreview() {
+  els.filePreviewModal.classList.remove("is-open");
+  els.filePreviewModal.setAttribute("aria-hidden", "true");
+  els.filePreviewBody.innerHTML = "";
 }
 
 function handleFileDragStart(event) {
@@ -1441,8 +1643,29 @@ function iconForFile(filename) {
   return "📁";
 }
 
-function handleFileSubmit(event) {
+function setFileUploadBusy(isBusy) {
+  els.saveFile.disabled = isBusy;
+  if (isBusy) {
+    els.saveFile.textContent = "Procesando archivo...";
+  } else {
+    els.saveFile.textContent = editingFileId ? "Guardar cambios" : "Subir archivo";
+  }
+}
+
+function persistFileChange(rollback) {
+  try {
+    saveSubjects();
+    return true;
+  } catch (error) {
+    rollback();
+    alert("No fue posible guardar el archivo. El almacenamiento del navegador puede estar lleno; prueba con un archivo más pequeño o exporta un respaldo antes de liberar espacio.");
+    return false;
+  }
+}
+
+async function handleFileSubmit(event) {
   event.preventDefault();
+  await filesMigrationPromise;
   const subject = getActiveSubject();
   if (!subject) return;
   const file = els.fileInput.files[0];
@@ -1456,26 +1679,42 @@ function handleFileSubmit(event) {
 
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
-        subject.files[index] = {
+      reader.onload = async () => {
+        const updatedFile = {
           ...existing,
           name: file.name,
           type: file.type,
-          data: reader.result,
           displayName,
           uploadedAt: new Date().toISOString(),
         };
+        delete updatedFile.data;
+        try {
+          await setStoredFileData(existing.id, reader.result);
+        } catch (error) {
+          setFileUploadBusy(false);
+          alert("No fue posible guardar el archivo en el almacenamiento del navegador.");
+          return;
+        }
+        subject.files[index] = updatedFile;
         saveSubjects();
         renderFiles(subject);
         resetFileForm();
       };
+      reader.onerror = () => {
+        setFileUploadBusy(false);
+        alert("No fue posible leer el archivo seleccionado.");
+      };
+      setFileUploadBusy(true);
       reader.readAsDataURL(file);
     } else {
-      subject.files[index] = {
+      const updatedFile = {
         ...existing,
         displayName,
       };
-      saveSubjects();
+      subject.files[index] = updatedFile;
+      if (!persistFileChange(() => {
+        subject.files[index] = existing;
+      })) return;
       renderFiles(subject);
       resetFileForm();
     }
@@ -1488,21 +1727,32 @@ function handleFileSubmit(event) {
   }
 
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     const entry = {
       id: createId(),
       name: file.name,
       type: file.type,
       uploadedAt: new Date().toISOString(),
-      data: reader.result,
       displayName,
     };
+    try {
+      await setStoredFileData(entry.id, reader.result);
+    } catch (error) {
+      setFileUploadBusy(false);
+      alert("No fue posible guardar el archivo en el almacenamiento del navegador.");
+      return;
+    }
     subject.files = subject.files || [];
     subject.files.unshift(entry);
     saveSubjects();
     renderFiles(subject);
     resetFileForm();
   };
+  reader.onerror = () => {
+    setFileUploadBusy(false);
+    alert("No fue posible leer el archivo seleccionado.");
+  };
+  setFileUploadBusy(true);
   reader.readAsDataURL(file);
 }
 
@@ -1517,12 +1767,17 @@ function startEditFile(fileId) {
   els.cancelFileEdit.classList.remove("is-hidden");
 }
 
-function deleteFile(fileId) {
+async function deleteFile(fileId) {
   const subject = getActiveSubject();
   if (!subject) return;
   if (!confirm("Eliminar este archivo?")) return;
   subject.files = subject.files.filter((item) => item.id !== fileId);
   saveSubjects();
+  try {
+    await deleteStoredFileData(fileId);
+  } catch (error) {
+    console.error("No fue posible eliminar el contenido del archivo.", error);
+  }
   renderFiles(subject);
   if (editingFileId === fileId) {
     resetFileForm();
@@ -1533,6 +1788,7 @@ function resetFileForm() {
   els.fileForm.reset();
   editingFileId = null;
   els.saveFile.textContent = "Subir archivo";
+  els.saveFile.disabled = false;
   els.cancelFileEdit.classList.add("is-hidden");
   updateFilePickerLabel();
 }
@@ -1540,6 +1796,9 @@ function resetFileForm() {
 function updateFilePickerLabel() {
   const file = els.fileInput.files[0];
   els.filePickerLabel.textContent = file ? file.name : "Seleccionar archivo";
+  if (file && !els.fileName.value.trim()) {
+    els.fileName.value = file.name.replace(/\.[^.]+$/, "");
+  }
 }
 
 function renderLinks() {
@@ -2011,12 +2270,14 @@ function deleteNote(noteId) {
   calculateOverall();
 }
 
-function deleteSubject() {
+async function deleteSubject() {
   const subject = getActiveSubject();
   if (!subject) return;
   if (!confirm("Eliminar la materia y todas sus notas?")) return;
+  const fileIds = (subject.files || []).map((file) => file.id);
   subjects = subjects.filter((item) => item.id !== subject.id);
   saveSubjects();
+  await Promise.all(fileIds.map((fileId) => deleteStoredFileData(fileId).catch(() => {})));
   closeModal();
   updateGroupFilter();
   updateEventSubjects();
@@ -2049,30 +2310,42 @@ function handleLogoReset() {
   els.logoFile.value = "";
 }
 
-function handleExport() {
-  const payload = JSON.stringify(
-    {
-      version: 3,
-      exportedAt: new Date().toISOString(),
-      theme: document.body.getAttribute("data-theme") || "light",
-      logo: localStorage.getItem(logoKey) || "",
-      settings,
-      subjects,
-      links,
-      events,
-    },
-    null,
-    2
-  );
-  const blob = new Blob([payload], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "lectum-data.json";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+async function handleExport() {
+  try {
+    await filesMigrationPromise;
+    const exportSubjects = await Promise.all(subjects.map(async (subject) => ({
+      ...subject,
+      files: await Promise.all((subject.files || []).map(async (file) => ({
+        ...file,
+        data: await getStoredFileData(file),
+      }))),
+    })));
+    const payload = JSON.stringify(
+      {
+        version: 4,
+        exportedAt: new Date().toISOString(),
+        theme: document.body.getAttribute("data-theme") || "light",
+        logo: localStorage.getItem(logoKey) || "",
+        settings,
+        subjects: exportSubjects,
+        links,
+        events,
+      },
+      null,
+      2
+    );
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "lectum-data.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    alert("No fue posible preparar el respaldo. Comprueba que los archivos guardados sigan disponibles.");
+  }
 }
 
 function handleImport(event) {
@@ -2080,8 +2353,9 @@ function handleImport(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
+      await filesMigrationPromise;
       const parsed = JSON.parse(reader.result);
       const nextSubjects = Array.isArray(parsed) ? parsed : parsed.subjects;
       const nextLinks = Array.isArray(parsed) ? [] : parsed.links || [];
@@ -2091,7 +2365,15 @@ function handleImport(event) {
       if (!Array.isArray(nextSubjects) || !Array.isArray(nextLinks) || !Array.isArray(nextEvents)) {
         throw new Error("Formato invalido");
       }
-      subjects = nextSubjects.map(normalizeSubject);
+      const importedSubjects = nextSubjects.map(normalizeSubject);
+      const importedFiles = importedSubjects.flatMap((subject) => subject.files || []);
+      await Promise.all(importedFiles.map(async (storedFile) => {
+        if (storedFile.data) {
+          await setStoredFileData(storedFile.id, storedFile.data);
+          delete storedFile.data;
+        }
+      }));
+      subjects = importedSubjects;
       links = nextLinks;
       events = nextEvents;
       settings = normalizeSettings(nextSettings);
@@ -2118,7 +2400,7 @@ function handleImport(event) {
       renderEvents();
       closeConfig();
     } catch (err) {
-      alert("El archivo JSON no es valido.");
+      alert("No fue posible importar el archivo JSON. Comprueba que sea un respaldo válido y que el navegador tenga espacio disponible.");
     } finally {
       els.importFile.value = "";
     }
@@ -2210,6 +2492,10 @@ els.deleteLink.addEventListener("click", deleteLink);
 els.fileForm.addEventListener("submit", handleFileSubmit);
 els.fileInput.addEventListener("change", updateFilePickerLabel);
 els.cancelFileEdit.addEventListener("click", resetFileForm);
+els.filePreviewClose.addEventListener("click", closeFilePreview);
+els.filePreviewModal.addEventListener("click", (event) => {
+  if (event.target === els.filePreviewModal) closeFilePreview();
+});
 els.prevMonth.addEventListener("click", () => {
   calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
   renderEvents();
@@ -2227,6 +2513,7 @@ els.eventForm.addEventListener("submit", handleEventSubmit);
 
 initTheme();
 initLogo();
+filesMigrationPromise = migrateFilesToIndexedDb();
 updateGroupFilter();
 updateEventSubjects();
 renderGroupSettings();

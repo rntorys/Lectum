@@ -322,6 +322,17 @@
     </div>
   </div>
 
+  <div id="filePreviewModal" class="modal file-preview-modal" aria-hidden="true">
+    <div class="modal-card file-preview-card">
+      <button class="modal-close" id="filePreviewClose" aria-label="Cerrar vista previa">×</button>
+      <div>
+        <p class="eyebrow">Vista previa</p>
+        <h2 id="filePreviewTitle">Archivo</h2>
+      </div>
+      <div id="filePreviewBody" class="file-preview-body"></div>
+    </div>
+  </div>
+
   <div id="configModal" class="modal" aria-hidden="true">
     <div class="modal-card modal-compact">
       <button class="modal-close" id="configClose" aria-label="Cerrar">×</button>
@@ -460,6 +471,10 @@
             <li>
               <strong>Historial de eventos</strong>
               <span>Al seleccionar una fecha pasada en el calendario, puedes consultar los eventos que registraste para ese día.</span>
+            </li>
+            <li>
+              <strong>Vista previa de archivos</strong>
+              <span>Imágenes, PDF, textos, audios y videos guardados en una materia ahora pueden visualizarse sin volver a descargarlos, usando un almacenamiento preparado para archivos de mayor tamaño.</span>
             </li>
           </ul>
         </article>

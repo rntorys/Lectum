@@ -66,6 +66,8 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
 * 📎 **Archivos por materia**
 
   * Sube apuntes, materiales o documentos relacionados con cada materia.
+  * Visualiza imágenes, PDF, archivos de texto, audios y videos sin descargarlos nuevamente.
+  * Word, Excel, PowerPoint y archivos comprimidos mantienen la opción de descarga porque los navegadores no pueden representarlos directamente.
   * Descarga archivos desde la tarjeta correspondiente.
   * Reordena materiales por arrastre.
   * Interfaz de carga más clara, mostrando el archivo seleccionado.
@@ -83,7 +85,9 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
 
 * 💾 **Almacenamiento local**
 
-  * Los datos se guardan en el navegador mediante LocalStorage.
+  * Las notas y configuraciones se guardan mediante LocalStorage.
+  * Los archivos de materias utilizan IndexedDB para admitir contenidos de mayor tamaño.
+  * Toda la información permanece local en el navegador y no se envía a servicios externos.
   * No se pierde información al recargar o cerrar la página.
   * Lectum recuerda el último grupo o semestre que estaba abierto.
 
@@ -133,7 +137,7 @@ No intenta reemplazar sistemas institucionales, sino **darle al estudiante contr
 * HTML
 * CSS
 * JavaScript
-* LocalStorage para persistencia de datos
+* LocalStorage e IndexedDB para persistencia de datos
 
 Sin backend, sin cuentas y sin dependencias externas obligatorias.
 
@@ -154,3 +158,5 @@ Mejoras posibles:
 Proyecto personal de uso académico.
 
 Puedes utilizar Lectum para gestionar tus datos académicos. No se autoriza replicar, redistribuir o promocionar el proyecto como propio sin permiso del autor.
+
+Tú mandas, wn 🔥
