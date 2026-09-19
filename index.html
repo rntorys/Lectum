@@ -20,9 +20,17 @@
       <div class="top-actions">
         <button class="icon-button" id="configOpen" aria-label="Abrir configuracion">⚙</button>
         <button class="icon-button" id="updatesOpen" aria-label="Abrir novedades">🗂️</button>
-        <button class="toggle" id="themeToggle" aria-label="Cambiar tema">
-          <span id="themeLabel">Modo oscuro</span>
-        </button>
+        <div class="theme-menu-wrap">
+          <button class="toggle" id="themeToggle" type="button" aria-label="Seleccionar tema" aria-haspopup="true" aria-expanded="false">
+            <span id="themeLabel">Modo claro</span>
+            <span class="theme-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="theme-menu" id="themeMenu" role="menu" aria-label="Modos de apariencia">
+            <button type="button" role="menuitem" data-theme-option="light"><span class="theme-swatch theme-swatch-light"></span>Modo claro</button>
+            <button type="button" role="menuitem" data-theme-option="dark"><span class="theme-swatch theme-swatch-dark"></span>Modo oscuro</button>
+            <button type="button" role="menuitem" data-theme-option="pink"><span class="theme-swatch theme-swatch-pink"></span>Modo rosado</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -67,7 +75,7 @@
           </article>
         </section>
 
-        <section class="panel">
+        <section class="panel subjects-panel">
           <div class="panel-head">
             <div>
               <h3>Materias</h3>
@@ -77,7 +85,7 @@
           <div id="subjectsGrid" class="subjects-grid"></div>
         </section>
 
-        <section class="panel">
+        <section class="panel events-panel">
           <div class="panel-head">
             <div>
               <h3>Eventos</h3>
@@ -136,7 +144,7 @@
           <p id="nextEventName">Sin eventos</p>
           <span id="nextEventMeta" class="muted">Agrega un evento</span>
         </section>
-        <section class="panel">
+        <section class="panel subject-create-panel">
           <div class="panel-head">
             <div>
               <h3>Agregar materia</h3>
@@ -174,8 +182,9 @@
         <section class="panel events-side-panel" id="eventsSidePanel">
           <div class="panel-head">
             <div>
-              <h3>Proximos eventos</h3>
-              <p>Agenda ordenada por fecha.</p>
+              <h3 id="eventsListTitle">Próximos eventos</h3>
+              <p id="eventsListDescription">Agenda ordenada por fecha.</p>
+              <button class="history-back is-hidden" type="button" id="eventsHistoryBack">Volver a Próximos eventos</button>
             </div>
           </div>
           <div id="eventsList" class="events-list events-list-scroll"></div>
@@ -192,8 +201,16 @@
           <p class="eyebrow" id="modalEyebrow">Materia</p>
           <h2 id="modalTitle">-</h2>
           <label class="modal-field">
+            Nombre de la materia
+            <input type="text" id="modalSubjectName" required>
+          </label>
+          <label class="modal-field">
             Docente
             <input type="text" id="modalTeacher" placeholder="Docente sin registrar">
+          </label>
+          <label class="modal-field">
+            Grupo o semestre
+            <input type="text" id="modalSubjectGroup" placeholder="Sin grupo">
           </label>
         </div>
         <div class="mode-select">
@@ -326,6 +343,23 @@
           <input type="file" id="logoFile" accept="image/*">
         </label>
         <button class="ghost" type="button" id="resetLogo">Restaurar logo original</button>
+        <div class="group-config">
+          <div>
+            <h4>Grupos / semestres</h4>
+            <p class="muted small">Renombra un grupo y se actualizaran todas sus materias.</p>
+          </div>
+          <div id="groupNamesList" class="group-names-list"></div>
+        </div>
+        <div class="multiplier-config">
+          <div class="config-section-head">
+            <div>
+              <h4>Multiplicador de nota</h4>
+              <p class="muted small">Activa un factor por materia para ajustar su promedio final.</p>
+            </div>
+            <span class="tooltip" tabindex="0" data-tooltip="Multiplica el promedio de una materia por el número indicado.&#10;&#10;Ejemplo: 1.086 ajusta la nota según ese factor.">?</span>
+          </div>
+          <div id="multiplierList" class="multiplier-list"></div>
+        </div>
         <div class="credits-config">
           <label class="checkline">
             <input type="checkbox" id="weightedAverages">
@@ -390,6 +424,48 @@
       <div class="updates-list">
         <article class="update-item">
           <div class="update-head">
+            <h4>19se26ma</h4>
+            <span>19 septiembre 2026</span>
+          </div>
+          <p class="update-summary">Nuevas opciones para personalizar grupos y calcular promedios con mayor precisión.</p>
+          <ul class="update-changes">
+            <li>
+              <strong>Grupos y semestres editables</strong>
+              <span>Los nombres de los grupos o semestres ahora se pueden modificar desde Configuración, actualizando automáticamente todas sus materias.</span>
+            </li>
+            <li>
+              <strong>Último grupo recordado</strong>
+              <span>Lectum guarda en el navegador el último grupo seleccionado y lo restaura al volver a abrir la página.</span>
+            </li>
+            <li>
+              <strong>Materia con mayor peso</strong>
+              <span>La tarjeta de notas registradas fue reemplazada por una vista de la materia con más créditos del grupo correspondiente.</span>
+            </li>
+            <li>
+              <strong>Multiplicador de nota por materia</strong>
+              <span>Cada materia puede usar un multiplicador opcional de hasta cuatro decimales para ajustar su promedio final.</span>
+            </li>
+            <li>
+              <strong>Mejor distribución en móviles</strong>
+              <span>Se reorganizó el dashboard en pantallas pequeñas para mostrar primero el resumen y el próximo evento, seguidos por las materias, la creación de materias y la agenda.</span>
+            </li>
+            <li>
+              <strong>Materias editables</strong>
+              <span>Ahora puedes cambiar el nombre de una materia y moverla a otro grupo o semestre directamente desde su detalle.</span>
+            </li>
+            <li>
+              <strong>Nuevos modos de apariencia</strong>
+              <span>El selector de tema ahora despliega opciones para usar Lectum en modo claro, oscuro o rosado.</span>
+            </li>
+            <li>
+              <strong>Historial de eventos</strong>
+              <span>Al seleccionar una fecha pasada en el calendario, puedes consultar los eventos que registraste para ese día.</span>
+            </li>
+          </ul>
+        </article>
+
+        <article class="update-item">
+          <div class="update-head">
             <h4>33ju26mi</h4>
             <span>3 julio 2026</span>
           </div>
@@ -406,10 +482,6 @@
             <li>
               <strong>Notas solidas sin limite artificial</strong>
               <span>Se corrigió el límite que impedía registrar notas sólidas mayores a 20.</span>
-            </li>
-            <li>
-              <strong>Materia con mayor peso</strong>
-              <span>El contador de notas registradas fue reemplazado por una tarjeta que muestra la materia con más créditos del grupo correspondiente.</span>
             </li>
             <li>
               <strong>Nota aprobatoria configurable</strong>

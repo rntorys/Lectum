@@ -4,15 +4,19 @@ const linksKey = "lectum-links-v1";
 const eventsKey = "lectum-events-v1";
 const logoKey = "lectum-logo-v1";
 const settingsKey = "lectum-settings-v1";
+const selectedGroupKey = "lectum-selected-group-v1";
 const defaultLogoSrc = "img/newlogolec.png";
 const defaultFailColor = "#fff1f2";
 const defaultPassColor = "#f0fdf4";
+const defaultSubjectColor = "#1f4c7a";
+const pinkSubjectColor = "#c8668a";
 
 const els = {
   appRoot: document.getElementById("appRoot"),
   brandLogo: document.getElementById("brandLogo"),
   themeToggle: document.getElementById("themeToggle"),
   themeLabel: document.getElementById("themeLabel"),
+  themeMenu: document.getElementById("themeMenu"),
   overallAverage: document.getElementById("overallAverage"),
   overallFoot: document.getElementById("overallFoot"),
   overallSubjects: document.getElementById("overallSubjects"),
@@ -35,6 +39,9 @@ const els = {
   calendar: document.querySelector(".calendar"),
   eventsSidePanel: document.getElementById("eventsSidePanel"),
   eventsList: document.getElementById("eventsList"),
+  eventsListTitle: document.getElementById("eventsListTitle"),
+  eventsListDescription: document.getElementById("eventsListDescription"),
+  eventsHistoryBack: document.getElementById("eventsHistoryBack"),
   nextEventName: document.getElementById("nextEventName"),
   nextEventMeta: document.getElementById("nextEventMeta"),
   subjectsGrid: document.getElementById("subjectsGrid"),
@@ -49,7 +56,9 @@ const els = {
   modalClose: document.getElementById("modalClose"),
   modalEyebrow: document.getElementById("modalEyebrow"),
   modalTitle: document.getElementById("modalTitle"),
+  modalSubjectName: document.getElementById("modalSubjectName"),
   modalTeacher: document.getElementById("modalTeacher"),
+  modalSubjectGroup: document.getElementById("modalSubjectGroup"),
   modalMode: document.getElementById("modalMode"),
   modalColor: document.getElementById("modalColor"),
   deleteSubject: document.getElementById("deleteSubject"),
@@ -59,6 +68,8 @@ const els = {
   logoPreview: document.getElementById("logoPreview"),
   logoFile: document.getElementById("logoFile"),
   resetLogo: document.getElementById("resetLogo"),
+  groupNamesList: document.getElementById("groupNamesList"),
+  multiplierList: document.getElementById("multiplierList"),
   weightedAverages: document.getElementById("weightedAverages"),
   creditsList: document.getElementById("creditsList"),
   creditsStatus: document.getElementById("creditsStatus"),
@@ -183,10 +194,18 @@ function normalizeCredits(value) {
   return Math.round(parsed);
 }
 
+function normalizeMultiplier(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+  return Number(parsed.toFixed(4));
+}
+
 function normalizeSubject(subject) {
   return {
     ...subject,
     credits: normalizeCredits(subject.credits),
+    multiplierEnabled: Boolean(subject.multiplierEnabled),
+    multiplierValue: normalizeMultiplier(subject.multiplierValue),
     notes: Array.isArray(subject.notes) ? subject.notes : [],
     files: Array.isArray(subject.files) ? subject.files : [],
   };
@@ -286,9 +305,20 @@ function saveSettings() {
 }
 
 function setTheme(theme) {
-  document.body.setAttribute("data-theme", theme);
-  els.themeLabel.textContent = theme === "dark" ? "Modo claro" : "Modo oscuro";
-  localStorage.setItem(themeKey, theme);
+  const validTheme = ["light", "dark", "pink"].includes(theme) ? theme : "light";
+  const labels = { light: "Modo claro", dark: "Modo oscuro", pink: "Modo rosado" };
+  const previousTheme = document.body.getAttribute("data-theme") || "light";
+  const previousDefaultColor = previousTheme === "pink" ? pinkSubjectColor : defaultSubjectColor;
+  const nextDefaultColor = validTheme === "pink" ? pinkSubjectColor : defaultSubjectColor;
+  document.body.setAttribute("data-theme", validTheme);
+  els.themeLabel.textContent = labels[validTheme];
+  if (els.subjectColor.value.toLowerCase() === previousDefaultColor) {
+    els.subjectColor.value = nextDefaultColor;
+  }
+  els.themeMenu.querySelectorAll("[data-theme-option]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.themeOption === validTheme);
+  });
+  localStorage.setItem(themeKey, validTheme);
 }
 
 function initTheme() {
@@ -332,29 +362,31 @@ function computeNoteScore(note) {
 
 function calculateSubjectAverage(subject) {
   const activeNotes = subject.notes.filter((note) => !note.discarded);
-  if (!activeNotes.length) return { average: 0, weightSum: 0 };
+  if (!activeNotes.length) return { average: 0, baseAverage: 0, weightSum: 0 };
   const scores = activeNotes.map((note) => computeNoteScore(note));
+  let baseAverage = 0;
+  let weightSum = 0;
 
   if (subject.mode === "percent") {
-    const weightSum = activeNotes.reduce((acc, note) => acc + (note.weight || 0), 0);
+    weightSum = activeNotes.reduce((acc, note) => acc + (note.weight || 0), 0);
     if (weightSum <= 0) {
-      return { average: 0, weightSum };
+      return { average: 0, baseAverage: 0, weightSum };
     }
-    const weighted = activeNotes.reduce((acc, note, index) => {
+    baseAverage = activeNotes.reduce((acc, note, index) => {
       return acc + scores[index] * ((note.weight || 0) / weightSum);
     }, 0);
-    return { average: weighted, weightSum };
-  }
-
-  if (subject.mode === "geometric") {
+  } else if (subject.mode === "geometric") {
     const valid = scores.filter((score) => score > 0);
-    if (!valid.length) return { average: 0, weightSum: 0 };
+    if (!valid.length) return { average: 0, baseAverage: 0, weightSum: 0 };
     const product = valid.reduce((acc, val) => acc * val, 1);
-    return { average: Math.pow(product, 1 / valid.length), weightSum: 0 };
+    baseAverage = Math.pow(product, 1 / valid.length);
+  } else {
+    const sum = scores.reduce((acc, val) => acc + val, 0);
+    baseAverage = sum / scores.length;
   }
 
-  const sum = scores.reduce((acc, val) => acc + val, 0);
-  return { average: sum / scores.length, weightSum: 0 };
+  const multiplier = subject.multiplierEnabled ? normalizeMultiplier(subject.multiplierValue) : 1;
+  return { average: baseAverage * multiplier, baseAverage, weightSum };
 }
 
 function getLastGroupSubjects() {
@@ -432,7 +464,9 @@ function renderSubjects() {
       <span>${subject.teacher || "Docente sin registrar"}</span>
       <span>${subject.group || "Sin grupo"}</span>
       ${settings.weightedAverages ? `<span>Creditos: ${normalizeCredits(subject.credits)}</span>` : ""}
+      ${subject.multiplierEnabled ? `<span>Multiplicador: x${normalizeMultiplier(subject.multiplierValue).toFixed(4)}</span>` : ""}
       <strong ${averageColor ? `style="color: ${averageColor}"` : ""}>Promedio: ${stats.average.toFixed(2)}</strong>
+      ${subject.multiplierEnabled ? `<span>Base sin multiplicador: ${stats.baseAverage.toFixed(2)}</span>` : ""}
       <span>${activeNotesCount} notas${discardedNotesCount ? ` · ${discardedNotesCount} descartadas` : ""}</span>
     `;
     card.addEventListener("click", () => openSubject(subject.id));
@@ -452,9 +486,11 @@ function openSubject(subjectId) {
   if (!subject) return;
 
   els.modalTitle.textContent = subject.name;
+  els.modalSubjectName.value = subject.name;
   els.modalTeacher.value = subject.teacher || "";
+  els.modalSubjectGroup.value = subject.group || "";
   els.modalMode.value = subject.mode;
-  els.modalColor.value = subject.color || "#1f4c7a";
+  els.modalColor.value = subject.color || (document.body.getAttribute("data-theme") === "pink" ? pinkSubjectColor : defaultSubjectColor);
   els.modal.style.setProperty("--subject-color", subject.color || "var(--accent)");
 
   renderSubjectDetails(subject);
@@ -470,6 +506,8 @@ function closeModal() {
 }
 
 function openConfig() {
+  renderGroupSettings();
+  renderMultiplierSettings();
   renderCreditsSettings();
   renderPassingSettings();
   els.configModal.classList.add("is-open");
@@ -1022,6 +1060,8 @@ function handleSubjectSubmit(event) {
     color: els.subjectColor.value,
     mode: els.subjectMode.value,
     credits: 1,
+    multiplierEnabled: false,
+    multiplierValue: 1,
     notes: [],
     files: [],
   };
@@ -1029,13 +1069,15 @@ function handleSubjectSubmit(event) {
   subjects.push(newSubject);
   els.subjectForm.reset();
   els.subjectGroup.value = "";
-  els.subjectColor.value = "#1f4c7a";
+  els.subjectColor.value = document.body.getAttribute("data-theme") === "pink" ? pinkSubjectColor : defaultSubjectColor;
   updateGroupFilter();
   updateEventSubjects();
   renderCreditsSettings();
   saveSubjects();
   renderSubjects();
   calculateOverall();
+  renderGroupSettings();
+  renderMultiplierSettings();
 }
 
 function handleNoteSubmit(event) {
@@ -1142,10 +1184,23 @@ function renderCalendar() {
 
 function renderEventList() {
   const today = getToday();
-  const visibleEvents = sortEvents(events.filter((event) => event.date && event.date >= today));
+  const showingHistory = Boolean(selectedEventDate && selectedEventDate < today);
+  const visibleEvents = showingHistory
+    ? sortEvents(events.filter((event) => event.date === selectedEventDate))
+    : sortEvents(events.filter((event) => event.date && event.date >= today));
+
+  els.eventsListTitle.textContent = showingHistory
+    ? `Eventos del ${formatDate(selectedEventDate)}`
+    : "Próximos eventos";
+  els.eventsListDescription.textContent = showingHistory
+    ? "Historial de la fecha seleccionada."
+    : "Agenda ordenada por fecha.";
+  els.eventsHistoryBack.classList.toggle("is-hidden", !showingHistory);
 
   if (!visibleEvents.length) {
-    els.eventsList.innerHTML = "<div class=\"empty\">No hay proximos eventos.</div>";
+    els.eventsList.innerHTML = showingHistory
+      ? "<div class=\"empty\">No registraste eventos para este dia.</div>"
+      : "<div class=\"empty\">No hay proximos eventos.</div>";
     return;
   }
 
@@ -1632,6 +1687,121 @@ function deleteLink() {
   closeLinkModal();
 }
 
+function getGroups() {
+  return Array.from(new Set(subjects.map((subject) => subject.group).filter(Boolean))).sort();
+}
+
+function renderGroupSettings() {
+  const groups = getGroups();
+  if (!groups.length) {
+    els.groupNamesList.innerHTML = "<div class=\"empty\">No hay grupos creados aun.</div>";
+    return;
+  }
+
+  els.groupNamesList.innerHTML = groups
+    .map((group) => `
+      <div class="group-name-row">
+        <input type="text" value="${escapeHtml(group)}" data-group-input="${escapeHtml(group)}" aria-label="Nombre del grupo ${escapeHtml(group)}">
+        <button class="ghost" type="button" data-group-save="${escapeHtml(group)}">Guardar</button>
+      </div>
+    `)
+    .join("");
+}
+
+function renameGroup(oldGroup, nextGroup) {
+  const newGroup = nextGroup.trim();
+  if (!oldGroup || !newGroup || oldGroup === newGroup) return;
+  if (subjects.some((subject) => subject.group === newGroup)) {
+    alert("Ya existe un grupo con ese nombre.");
+    return;
+  }
+
+  subjects.forEach((subject) => {
+    if (subject.group === oldGroup) {
+      subject.group = newGroup;
+    }
+  });
+
+  if (els.groupFilter.value === oldGroup) {
+    els.groupFilter.value = newGroup;
+  }
+  if (localStorage.getItem(selectedGroupKey) === oldGroup) {
+    localStorage.setItem(selectedGroupKey, newGroup);
+  }
+  saveSubjects();
+  updateGroupFilter(newGroup);
+  renderGroupSettings();
+  renderMultiplierSettings();
+  renderCreditsSettings();
+  renderSubjects();
+  calculateOverall();
+}
+
+function renderMultiplierSettings() {
+  if (!subjects.length) {
+    els.multiplierList.innerHTML = "<div class=\"empty\">Crea materias para asignar multiplicadores.</div>";
+    return;
+  }
+
+  const groups = subjects.reduce((acc, subject) => {
+    const groupName = subject.group || "Sin grupo";
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(subject);
+    return acc;
+  }, {});
+
+  els.multiplierList.innerHTML = "";
+  Object.keys(groups)
+    .sort()
+    .forEach((groupName) => {
+      const groupBox = document.createElement("div");
+      groupBox.className = "multiplier-group";
+      const rows = groups[groupName]
+        .map((subject) => `
+          <div class="multiplier-row">
+            <label class="checkline">
+              <input type="checkbox" ${subject.multiplierEnabled ? "checked" : ""} data-multiplier-enabled="${escapeHtml(subject.id)}">
+              <span>
+                <strong>${escapeHtml(subject.name)}</strong>
+                <small>${escapeHtml(subject.teacher || "Docente sin registrar")}</small>
+              </span>
+            </label>
+            <input type="number" min="0.0001" step="0.0001" value="${normalizeMultiplier(subject.multiplierValue).toFixed(4)}" data-multiplier-value="${escapeHtml(subject.id)}" aria-label="Multiplicador de ${escapeHtml(subject.name)}">
+          </div>
+        `)
+        .join("");
+      groupBox.innerHTML = `
+        <h4>${escapeHtml(groupName)}</h4>
+        ${rows}
+      `;
+      els.multiplierList.appendChild(groupBox);
+    });
+}
+
+function handleMultiplierChange(event) {
+  const enabledInput = event.target.closest("[data-multiplier-enabled]");
+  const valueInput = event.target.closest("[data-multiplier-value]");
+  const subjectId = enabledInput ? enabledInput.dataset.multiplierEnabled : valueInput ? valueInput.dataset.multiplierValue : "";
+  if (!subjectId) return;
+  const subject = subjects.find((item) => item.id === subjectId);
+  if (!subject) return;
+
+  if (enabledInput) {
+    subject.multiplierEnabled = enabledInput.checked;
+  }
+  if (valueInput) {
+    subject.multiplierValue = normalizeMultiplier(valueInput.value);
+    valueInput.value = subject.multiplierValue.toFixed(4);
+  }
+  saveSubjects();
+  renderSubjects();
+  calculateOverall();
+  const activeSubject = getActiveSubject();
+  if (activeSubject && activeSubject.id === subject.id) {
+    renderSubjectDetails(activeSubject);
+  }
+}
+
 function renderCreditsSettings() {
   els.weightedAverages.checked = settings.weightedAverages;
   els.creditsStatus.textContent = settings.weightedAverages
@@ -1757,9 +1927,63 @@ function handleTeacherChange() {
   renderSubjects();
 }
 
-function updateGroupFilter() {
-  const current = els.groupFilter.value;
-  const groups = Array.from(new Set(subjects.map((subject) => subject.group).filter(Boolean))).sort();
+function handleSubjectNameChange() {
+  const subject = getActiveSubject();
+  if (!subject) return;
+
+  const previousName = subject.name;
+  const nextName = els.modalSubjectName.value.trim();
+  if (!nextName) {
+    els.modalSubjectName.value = previousName;
+    return;
+  }
+  if (subjects.some((item) => item.id !== subject.id && item.name.toLowerCase() === nextName.toLowerCase())) {
+    alert("Ya existe una materia con ese nombre.");
+    els.modalSubjectName.value = previousName;
+    return;
+  }
+  if (nextName === previousName) return;
+
+  subject.name = nextName;
+  events.forEach((event) => {
+    if (event.subject === previousName) event.subject = nextName;
+  });
+  els.modalTitle.textContent = nextName;
+  saveSubjects();
+  saveEvents();
+  updateEventSubjects();
+  renderSubjects();
+  renderEvents();
+  renderCreditsSettings();
+  renderMultiplierSettings();
+  calculateOverall();
+}
+
+function handleSubjectGroupChange() {
+  const subject = getActiveSubject();
+  if (!subject) return;
+
+  const previousGroup = subject.group || "";
+  const nextGroup = els.modalSubjectGroup.value.trim();
+  if (nextGroup === previousGroup) return;
+
+  subject.group = nextGroup;
+  saveSubjects();
+  const selectedGroup = els.groupFilter.value;
+  const preferredGroup = selectedGroup === previousGroup ? nextGroup : selectedGroup;
+  updateGroupFilter(preferredGroup);
+  if (preferredGroup) localStorage.setItem(selectedGroupKey, preferredGroup);
+  else localStorage.removeItem(selectedGroupKey);
+  renderSubjects();
+  renderGroupSettings();
+  renderCreditsSettings();
+  renderMultiplierSettings();
+  calculateOverall();
+}
+
+function updateGroupFilter(preferredGroup = els.groupFilter.value || localStorage.getItem(selectedGroupKey) || "") {
+  const current = preferredGroup;
+  const groups = getGroups();
   els.groupFilter.innerHTML = "<option value=\"\">Todos</option>";
   groups.forEach((group) => {
     const option = document.createElement("option");
@@ -1768,6 +1992,10 @@ function updateGroupFilter() {
     if (group === current) option.selected = true;
     els.groupFilter.appendChild(option);
   });
+  if (current && !groups.includes(current)) {
+    els.groupFilter.value = "";
+    localStorage.removeItem(selectedGroupKey);
+  }
 }
 
 function deleteNote(noteId) {
@@ -1792,15 +2020,16 @@ function deleteSubject() {
   closeModal();
   updateGroupFilter();
   updateEventSubjects();
+  renderGroupSettings();
+  renderMultiplierSettings();
   renderCreditsSettings();
   renderSubjects();
   calculateOverall();
 }
 
 function handleThemeToggle() {
-  const current = document.body.getAttribute("data-theme") || "light";
-  const next = current === "dark" ? "light" : "dark";
-  setTheme(next);
+  const isOpen = els.themeMenu.classList.toggle("is-open");
+  els.themeToggle.setAttribute("aria-expanded", String(isOpen));
 }
 
 function handleLogoChange(event) {
@@ -1867,7 +2096,7 @@ function handleImport(event) {
       events = nextEvents;
       settings = normalizeSettings(nextSettings);
       if (!Array.isArray(parsed) && parsed.theme) {
-        setTheme(parsed.theme === "dark" ? "dark" : "light");
+        setTheme(["light", "dark", "pink"].includes(parsed.theme) ? parsed.theme : "light");
       }
       if (!Array.isArray(parsed)) {
         setLogo(parsed.logo || "");
@@ -1879,6 +2108,8 @@ function handleImport(event) {
       closeModal();
       updateGroupFilter();
       updateEventSubjects();
+      renderGroupSettings();
+      renderMultiplierSettings();
       renderCreditsSettings();
       renderPassingSettings();
       renderSubjects();
@@ -1907,12 +2138,31 @@ els.modal.addEventListener("click", (event) => {
 els.modalMode.addEventListener("change", handleModeChange);
 els.modalColor.addEventListener("change", handleColorChange);
 els.modalTeacher.addEventListener("input", handleTeacherChange);
+els.modalSubjectName.addEventListener("change", handleSubjectNameChange);
+els.modalSubjectGroup.addEventListener("change", handleSubjectGroupChange);
 els.deleteSubject.addEventListener("click", deleteSubject);
 els.groupFilter.addEventListener("change", () => {
+  if (els.groupFilter.value) {
+    localStorage.setItem(selectedGroupKey, els.groupFilter.value);
+  } else {
+    localStorage.removeItem(selectedGroupKey);
+  }
   renderSubjects();
   calculateOverall();
 });
 els.themeToggle.addEventListener("click", handleThemeToggle);
+els.themeMenu.addEventListener("click", (event) => {
+  const option = event.target.closest("[data-theme-option]");
+  if (!option) return;
+  setTheme(option.dataset.themeOption);
+  els.themeMenu.classList.remove("is-open");
+  els.themeToggle.setAttribute("aria-expanded", "false");
+});
+document.addEventListener("click", (event) => {
+  if (event.target.closest(".theme-menu-wrap")) return;
+  els.themeMenu.classList.remove("is-open");
+  els.themeToggle.setAttribute("aria-expanded", "false");
+});
 els.configOpen.addEventListener("click", openConfig);
 els.configClose.addEventListener("click", closeConfig);
 els.configModal.addEventListener("click", (event) => {
@@ -1920,6 +2170,16 @@ els.configModal.addEventListener("click", (event) => {
 });
 els.logoFile.addEventListener("change", handleLogoChange);
 els.resetLogo.addEventListener("click", handleLogoReset);
+els.groupNamesList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-group-save]");
+  if (!button) return;
+  const oldGroup = button.dataset.groupSave;
+  const input = Array.from(els.groupNamesList.querySelectorAll("[data-group-input]"))
+    .find((item) => item.dataset.groupInput === oldGroup);
+  if (!input) return;
+  renameGroup(oldGroup, input.value);
+});
+els.multiplierList.addEventListener("change", handleMultiplierChange);
 els.weightedAverages.addEventListener("change", handleWeightedAveragesToggle);
 els.creditsList.addEventListener("change", handleCreditChange);
 els.passingEnabled.addEventListener("change", handlePassingSettingsChange);
@@ -1952,12 +2212,14 @@ els.fileInput.addEventListener("change", updateFilePickerLabel);
 els.cancelFileEdit.addEventListener("click", resetFileForm);
 els.prevMonth.addEventListener("click", () => {
   calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
-  selectedEventDate = toDateKey(calendarDate);
   renderEvents();
 });
 els.nextMonth.addEventListener("click", () => {
   calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1);
-  selectedEventDate = toDateKey(calendarDate);
+  renderEvents();
+});
+els.eventsHistoryBack.addEventListener("click", () => {
+  selectedEventDate = getToday();
   renderEvents();
 });
 window.addEventListener("resize", syncEventsPanelHeight);
@@ -1967,6 +2229,8 @@ initTheme();
 initLogo();
 updateGroupFilter();
 updateEventSubjects();
+renderGroupSettings();
+renderMultiplierSettings();
 renderCreditsSettings();
 renderPassingSettings();
 renderSubjects();

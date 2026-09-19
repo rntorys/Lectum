@@ -10,6 +10,8 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
 
   * Organización por grupo, año o semestre.
   * Registro de docente, color, modo de cálculo y créditos por materia.
+  * Edición del nombre de una materia y del grupo o semestre al que pertenece.
+  * Renombrado de grupos semestrales desde Configuración.
   * Visualización clara de notas sólidas y notas control.
   * Edición rápida directamente desde cada tarjeta de nota.
 
@@ -25,6 +27,12 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
   * Configuración opcional para que cada materia afecte el promedio general según sus créditos o peso académico.
   * Los créditos no necesitan sumar 100: Lectum calcula la proporción automáticamente.
   * El dashboard puede mostrar la materia con mayor peso del grupo.
+
+* ✖️ **Multiplicador de nota por materia**
+
+  * Activa un multiplicador únicamente en las materias que lo necesiten.
+  * Admite valores con hasta cuatro decimales.
+  * Muestra tanto el promedio base como el resultado final ajustado.
 
 * ✅ **Nota aprobatoria configurable**
 
@@ -52,11 +60,13 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
   * Cada evento puede incluir materia, fecha, hora y temario.
   * Calendario mensual con navegación.
   * Panel de próximo evento y lista de próximos eventos.
+  * Los eventos pasados no aparecen como próximos al importar respaldos.
+  * Historial de eventos al seleccionar una fecha pasada en el calendario.
 
 * 📎 **Archivos por materia**
 
   * Sube apuntes, materiales o documentos relacionados con cada materia.
-  * Descarga archivos.
+  * Descarga archivos desde la tarjeta correspondiente.
   * Reordena materiales por arrastre.
   * Interfaz de carga más clara, mostrando el archivo seleccionado.
 
@@ -65,14 +75,17 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
   * Guarda accesos directos a plataformas universitarias o recursos útiles.
   * Soporte para favicon, emoji o imagen personalizada.
 
-* 🌗 **Modo claro / oscuro**
+* 🎭 **Temas de apariencia**
 
-  * Adaptable a distintos entornos de estudio.
+  * Modos claro, oscuro y rosado.
+  * El modo rosado incorpora degradados, iluminación ambiental y animaciones sutiles.
+  * El tema seleccionado se conserva al volver a abrir Lectum.
 
 * 💾 **Almacenamiento local**
 
   * Los datos se guardan en el navegador mediante LocalStorage.
   * No se pierde información al recargar o cerrar la página.
+  * Lectum recuerda el último grupo o semestre que estaba abierto.
 
 * 📤 **Exportación e importación JSON**
 
@@ -85,6 +98,28 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
   * Logo personalizable.
   * Colores por materia.
   * Configuración de ponderaciones, nota aprobatoria y zonas coloreadas.
+
+* 📱 **Diseño adaptable**
+
+  * Distribución optimizada para computador y celular.
+  * En móviles se priorizan el resumen, el próximo evento y las materias.
+
+## 🚀 Cómo usar Lectum
+
+Lectum no requiere instalación, servidor ni dependencias externas:
+
+1. Descarga o clona el proyecto.
+2. Abre `index.html` en un navegador moderno.
+3. Crea un grupo o semestre y comienza a registrar tus materias.
+
+Los datos permanecen en el navegador donde utilizas Lectum. Para trasladarlos a otro dispositivo o evitar pérdidas al limpiar los datos del navegador, utiliza las opciones **Exportar JSON** e **Importar JSON** de Configuración.
+
+## 📁 Estructura del proyecto
+
+* `index.html`: estructura principal de la aplicación.
+* `styles.css`: diseño, temas y adaptación para móviles.
+* `app.js`: gestión de datos, cálculos e interacciones.
+* `img/`: logotipos y recursos gráficos.
 
 ## 🎯 Objetivo del proyecto
 
@@ -118,4 +153,4 @@ Mejoras posibles:
 
 Proyecto personal de uso académico.
 
-Puedes usar la página como gustes, pero no replicar el proyecto ni promocionarlo como propio sin mi autorización.
+Puedes utilizar Lectum para gestionar tus datos académicos. No se autoriza replicar, redistribuir o promocionar el proyecto como propio sin permiso del autor.
