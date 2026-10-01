@@ -63,6 +63,23 @@ La idea es poder registrar tus notas sin depender de que el profesor las suba a 
   * Los eventos pasados no aparecen como próximos al importar respaldos.
   * Historial de eventos al seleccionar una fecha pasada en el calendario.
 
+* 📖 **Planes de estudio**
+
+  * Crea un espacio de preparación dentro de cualquier evento.
+  * Organiza tareas por arrastre y asigna el día en que planeas estudiarlas.
+  * Alterna cada tarea entre pendiente, estudiada y necesita repaso.
+  * Identifica automáticamente tareas de estudio atrasadas.
+  * Usa un temporizador circular personalizado con controles de 15 minutos.
+  * El temporizador continúa en un control flotante al cerrar el plan y conserva su estado al recargar.
+  * Permite activar un aviso al finalizar y muestra claramente cuándo el tiempo ha terminado.
+  * Vincula materiales guardados o sube archivos directamente desde el plan.
+  * Añade enlaces externos e incorpora videos de YouTube dentro del plan.
+  * Guarda notas y consulta un progreso visual que cambia de rojo a verde.
+  * Registra el resultado y una reflexión después del control.
+  * Archiva, reintegra o elimina el plan al terminar.
+
+> Los videos de YouTube se reproducen dentro de Lectum cuando la página se sirve mediante `http://` o `https://`. Al abrir `index.html` directamente, Lectum muestra una vista previa con enlace a YouTube porque el protocolo `file://` no proporciona la identificación de origen exigida por el reproductor integrado.
+
 * 📎 **Archivos por materia**
 
   * Sube apuntes, materiales o documentos relacionados con cada materia.
@@ -158,5 +175,3 @@ Mejoras posibles:
 Proyecto personal de uso académico.
 
 Puedes utilizar Lectum para gestionar tus datos académicos. No se autoriza replicar, redistribuir o promocionar el proyecto como propio sin permiso del autor.
-
-Tú mandas, wn 🔥

@@ -193,13 +193,26 @@
     </main>
   </div>
 
+  <aside class="study-timer-floating is-hidden" id="studyTimerFloating" aria-live="polite">
+    <button class="study-timer-floating-main" type="button" id="studyTimerFloatingOpen" aria-label="Abrir plan de estudio">
+      <span id="studyTimerFloatingEvent">Plan de estudio</span>
+      <strong id="studyTimerFloatingTime">00:00</strong>
+    </button>
+    <button class="icon-button" type="button" id="studyTimerFloatingToggle" aria-label="Pausar temporizador" title="Pausar">
+      <svg id="studyTimerFloatingPlay" class="is-hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+      <svg id="studyTimerFloatingPause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"></path></svg>
+    </button>
+  </aside>
+
   <div id="subjectModal" class="modal" aria-hidden="true">
-    <div class="modal-card">
+    <div class="modal-card subject-modal-card">
       <button class="modal-close" id="modalClose" aria-label="Cerrar">×</button>
       <div class="modal-header">
-        <div>
+        <div class="subject-modal-heading">
           <p class="eyebrow" id="modalEyebrow">Materia</p>
           <h2 id="modalTitle">-</h2>
+        </div>
+        <div class="subject-modal-fields">
           <label class="modal-field">
             Nombre de la materia
             <input type="text" id="modalSubjectName" required>
@@ -212,20 +225,20 @@
             Grupo o semestre
             <input type="text" id="modalSubjectGroup" placeholder="Sin grupo">
           </label>
+          <div class="mode-select">
+            <label for="modalMode">Modo de calculo</label>
+            <select id="modalMode">
+              <option value="percent">Porcentaje</option>
+              <option value="average">Promedio</option>
+              <option value="geometric">Geometrica</option>
+            </select>
+          </div>
+          <div class="mode-select subject-color-field">
+            <label for="modalColor">Color</label>
+            <input type="color" id="modalColor" value="#1f4c7a">
+          </div>
+          <button class="ghost danger" type="button" id="deleteSubject">Eliminar materia</button>
         </div>
-        <div class="mode-select">
-          <label for="modalMode">Modo de calculo</label>
-          <select id="modalMode">
-            <option value="percent">Porcentaje</option>
-            <option value="average">Promedio</option>
-            <option value="geometric">Geometrica</option>
-          </select>
-        </div>
-        <div class="mode-select">
-          <label for="modalColor">Color</label>
-          <input type="color" id="modalColor" value="#1f4c7a">
-        </div>
-        <button class="ghost danger" type="button" id="deleteSubject">Eliminar materia</button>
       </div>
 
       <div class="modal-summary">
@@ -333,6 +346,139 @@
     </div>
   </div>
 
+  <div id="studyPlanModal" class="modal study-plan-modal" aria-hidden="true">
+    <div class="modal-card study-plan-card">
+      <button class="modal-close" id="studyPlanClose" aria-label="Cerrar plan de estudio">×</button>
+      <div class="study-plan-head">
+        <div>
+          <p class="eyebrow">Plan de estudio</p>
+          <h2 id="studyPlanTitle">Evento</h2>
+          <p class="muted" id="studyPlanMeta"></p>
+        </div>
+        <span class="study-plan-status" id="studyPlanStatus">Activo</span>
+      </div>
+
+      <div class="study-progress">
+        <div class="study-progress-head">
+          <strong>Progreso</strong>
+          <span id="studyProgressLabel">0 de 0 tareas</span>
+        </div>
+        <div class="study-progress-track" aria-hidden="true">
+          <span id="studyProgressBar"></span>
+        </div>
+      </div>
+
+      <section class="study-timer" aria-label="Temporizador de estudio">
+        <div class="study-timer-ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="studyTimerGradient" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0%" stop-color="#d94b56"></stop>
+                <stop offset="52%" stop-color="#d99a32"></stop>
+                <stop offset="100%" stop-color="#2f9d68"></stop>
+              </linearGradient>
+            </defs>
+            <circle class="study-timer-track" cx="60" cy="60" r="52"></circle>
+            <circle class="study-timer-progress" id="studyTimerProgress" cx="60" cy="60" r="52"></circle>
+          </svg>
+          <div class="study-timer-readout">
+            <p id="studyTimerState">Tiempo</p>
+            <strong id="studyTimerDisplay">25:00</strong>
+          </div>
+        </div>
+        <div class="study-timer-controls">
+          <button class="ghost" type="button" id="studyTimerMinus" aria-label="Restar 15 minutos">−15 min</button>
+          <label>
+            Minutos
+            <input type="number" id="studyTimerMinutes" min="0" step="1" value="25">
+          </label>
+          <button class="ghost" type="button" id="studyTimerPlus" aria-label="Sumar 15 minutos">+15 min</button>
+          <button class="primary study-timer-icon" type="button" id="studyTimerToggle" aria-label="Iniciar temporizador" title="Iniciar">
+            <svg id="studyTimerPlayIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+            <svg class="is-hidden" id="studyTimerPauseIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"></path></svg>
+          </button>
+          <button class="ghost study-timer-icon" type="button" id="studyTimerReset" aria-label="Reiniciar temporizador" title="Reiniciar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5a7 7 0 1 1-6.4 4.2l1.8.9A5 5 0 1 0 9 7.1V10H7V4h6v2h-2.2A7 7 0 0 1 12 5Z"></path></svg>
+          </button>
+          <label class="study-timer-notify">
+            <input type="checkbox" id="studyTimerNotify">
+            Avisar al finalizar
+          </label>
+        </div>
+      </section>
+
+      <section class="study-section">
+        <div class="study-section-head">
+          <div>
+            <h3>Orden de estudio</h3>
+            <p>Arrastra las tareas para definir qué estudiar primero.</p>
+            <p class="study-state-help">Pulsa el estado: Pendiente → Estudiado → Necesita repaso → Pendiente.</p>
+          </div>
+        </div>
+        <form class="study-task-form" id="studyTaskForm">
+          <input type="text" id="studyTaskInput" placeholder="Ej. Repasar unidad 2" required>
+          <button class="primary" type="submit">Agregar tarea</button>
+        </form>
+        <div class="study-task-list" id="studyTaskList"></div>
+      </section>
+
+      <section class="study-section">
+        <div class="study-section-head">
+          <div>
+            <h3>Material para estudiar</h3>
+            <p>Selecciona archivos de la materia o agrega uno directamente.</p>
+          </div>
+          <label class="study-file-picker">
+            <span id="studyFilePickerLabel">Agregar archivo</span>
+            <input type="file" id="studyFileInput">
+          </label>
+        </div>
+        <div class="study-material-list" id="studyMaterialList"></div>
+      </section>
+
+      <section class="study-section">
+        <div class="study-section-head">
+          <div>
+            <h3>Enlaces externos</h3>
+            <p>Pega una página, un video o un código iframe de YouTube.</p>
+          </div>
+        </div>
+        <form class="study-link-form" id="studyLinkForm">
+          <input type="text" id="studyLinkInput" placeholder="https://... o &lt;iframe ...&gt;" required>
+          <button class="primary" type="submit">Agregar enlace</button>
+        </form>
+        <div class="study-link-list" id="studyLinkList"></div>
+      </section>
+
+      <section class="study-section">
+        <label class="study-notes-label" for="studyPlanNotes">Notas del plan</label>
+        <textarea id="studyPlanNotes" placeholder="Dudas, fórmulas, enlaces o recordatorios..."></textarea>
+      </section>
+
+      <section class="study-section study-result-section">
+        <div class="study-section-head">
+          <div>
+            <h3>Resultado y reflexión</h3>
+            <p>Registra cómo te fue y qué cambiarías para el próximo control.</p>
+          </div>
+        </div>
+        <label>
+          Resultado
+          <input type="text" id="studyPlanResult" placeholder="Ej. 82/100 o nota 6,1">
+        </label>
+        <label>
+          Reflexión
+          <textarea id="studyPlanReflection" placeholder="Qué funcionó, qué faltó repasar y qué mejorarías..."></textarea>
+        </label>
+      </section>
+
+      <div class="study-plan-actions">
+        <button class="ghost" type="button" id="studyPlanArchive">Archivar plan</button>
+        <button class="ghost danger" type="button" id="studyPlanDelete">Eliminar plan</button>
+      </div>
+    </div>
+  </div>
+
   <div id="configModal" class="modal" aria-hidden="true">
     <div class="modal-card modal-compact">
       <button class="modal-close" id="configClose" aria-label="Cerrar">×</button>
@@ -433,6 +579,60 @@
         <p class="muted">Notas de las actualizaciones recientes.</p>
       </div>
       <div class="updates-list">
+        <article class="update-item">
+          <div class="update-head">
+            <h4>30se26mi</h4>
+            <span>30 septiembre 2026</span>
+          </div>
+          <p class="update-summary">Renovación visual del dashboard y nueva herramienta de planes de estudio para preparar cada evento académico.</p>
+          <ul class="update-changes">
+            <li>
+              <strong>Interfaz visual renovada</strong>
+              <span>Se actualizaron fondos, paneles, sombras, botones, formularios, modales y microinteracciones para ofrecer una apariencia más moderna y consistente.</span>
+            </li>
+            <li>
+              <strong>Resumen más expresivo</strong>
+              <span>Las métricas principales ahora se diferencian mediante colores y detalles visuales, manteniendo sus textos correctamente alineados.</span>
+            </li>
+            <li>
+              <strong>Materias con iluminación personalizada</strong>
+              <span>Cada materia utiliza su color asignado para generar una iluminación propia y facilitar su identificación.</span>
+            </li>
+            <li>
+              <strong>Cabecera compacta y fija</strong>
+              <span>La cabecera permanece accesible al desplazarse y ocupa menos altura tanto en el contenido como en la navegación.</span>
+            </li>
+            <li>
+              <strong>Selector de color renovado</strong>
+              <span>El selector de color dentro del detalle de una materia ahora utiliza una muestra circular más clara y agradable.</span>
+            </li>
+            <li>
+              <strong>Planes de estudio por evento</strong>
+              <span>Ahora puedes crear un plan de estudio dentro de cada evento, ordenar tareas, asignarles un día y alternarlas entre Pendiente, Estudiado y Necesita repaso. El progreso cambia de rojo a verde según las tareas completadas.</span>
+            </li>
+            <li>
+              <strong>Material de estudio integrado</strong>
+              <span>Los planes permiten adjuntar archivos directamente, reutilizar materiales de la materia, guardar enlaces externos e incorporar videos de YouTube, además de registrar notas, resultado y reflexión.</span>
+            </li>
+            <li>
+              <strong>Temporizador persistente</strong>
+              <span>El cronómetro continúa en un control flotante al cerrar el plan, conserva su estado al recargar, muestra claramente cuando el tiempo termina y permite activar un aviso final.</span>
+            </li>
+            <li>
+              <strong>Calendario renovado</strong>
+              <span>El calendario presenta una jerarquía más clara, navegación mejorada y estados visuales renovados para hoy, la fecha seleccionada, los fines de semana y los eventos de cada materia. Cuando coinciden varios eventos en un día, sus colores se combinan en un degradado.</span>
+            </li>
+            <li>
+              <strong>Agenda visual mejorada</strong>
+              <span>La lista de próximos eventos ahora muestra fechas compactas, mejor jerarquía para materias y temarios, iluminación basada en el color de cada materia y controles más discretos, incluyendo un nuevo icono de papelera.</span>
+            </li>
+            <li>
+              <strong>Detalle de materias renovado</strong>
+              <span>El espacio para consultar y editar cada materia ahora organiza mejor su identidad, configuración, promedio, notas, componentes y archivos, utilizando el color de la materia como referencia visual.</span>
+            </li>
+          </ul>
+        </article>
+
         <article class="update-item">
           <div class="update-head">
             <h4>19se26ma</h4>

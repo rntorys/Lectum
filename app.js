@@ -120,6 +120,45 @@ const els = {
   filePreviewClose: document.getElementById("filePreviewClose"),
   filePreviewTitle: document.getElementById("filePreviewTitle"),
   filePreviewBody: document.getElementById("filePreviewBody"),
+  studyPlanModal: document.getElementById("studyPlanModal"),
+  studyPlanClose: document.getElementById("studyPlanClose"),
+  studyPlanTitle: document.getElementById("studyPlanTitle"),
+  studyPlanMeta: document.getElementById("studyPlanMeta"),
+  studyPlanStatus: document.getElementById("studyPlanStatus"),
+  studyProgressLabel: document.getElementById("studyProgressLabel"),
+  studyProgressBar: document.getElementById("studyProgressBar"),
+  studyTimerDisplay: document.getElementById("studyTimerDisplay"),
+  studyTimerProgress: document.getElementById("studyTimerProgress"),
+  studyTimerMinus: document.getElementById("studyTimerMinus"),
+  studyTimerMinutes: document.getElementById("studyTimerMinutes"),
+  studyTimerPlus: document.getElementById("studyTimerPlus"),
+  studyTimerToggle: document.getElementById("studyTimerToggle"),
+  studyTimerPlayIcon: document.getElementById("studyTimerPlayIcon"),
+  studyTimerPauseIcon: document.getElementById("studyTimerPauseIcon"),
+  studyTimerReset: document.getElementById("studyTimerReset"),
+  studyTimerState: document.getElementById("studyTimerState"),
+  studyTimerNotify: document.getElementById("studyTimerNotify"),
+  studyTimerFloating: document.getElementById("studyTimerFloating"),
+  studyTimerFloatingOpen: document.getElementById("studyTimerFloatingOpen"),
+  studyTimerFloatingEvent: document.getElementById("studyTimerFloatingEvent"),
+  studyTimerFloatingTime: document.getElementById("studyTimerFloatingTime"),
+  studyTimerFloatingToggle: document.getElementById("studyTimerFloatingToggle"),
+  studyTimerFloatingPlay: document.getElementById("studyTimerFloatingPlay"),
+  studyTimerFloatingPause: document.getElementById("studyTimerFloatingPause"),
+  studyTaskForm: document.getElementById("studyTaskForm"),
+  studyTaskInput: document.getElementById("studyTaskInput"),
+  studyTaskList: document.getElementById("studyTaskList"),
+  studyMaterialList: document.getElementById("studyMaterialList"),
+  studyFileInput: document.getElementById("studyFileInput"),
+  studyFilePickerLabel: document.getElementById("studyFilePickerLabel"),
+  studyLinkForm: document.getElementById("studyLinkForm"),
+  studyLinkInput: document.getElementById("studyLinkInput"),
+  studyLinkList: document.getElementById("studyLinkList"),
+  studyPlanNotes: document.getElementById("studyPlanNotes"),
+  studyPlanResult: document.getElementById("studyPlanResult"),
+  studyPlanReflection: document.getElementById("studyPlanReflection"),
+  studyPlanArchive: document.getElementById("studyPlanArchive"),
+  studyPlanDelete: document.getElementById("studyPlanDelete"),
   noteTitle: document.getElementById("noteTitle"),
   noteType: document.getElementById("noteType"),
   noteScore: document.getElementById("noteScore"),
@@ -138,6 +177,13 @@ let links = loadLinks();
 let linkImageData = "";
 let editingLinkId = null;
 let editingFileId = null;
+let activeStudyEventId = null;
+let studyTimerRemaining = 0;
+let studyTimerInterval = null;
+let studyTimerRunning = false;
+let studyTimerEventId = null;
+let studyTimerFinished = false;
+let studyTimerStarted = false;
 let events = loadEvents();
 let editingEventId = null;
 let calendarDate = new Date();
@@ -1203,7 +1249,7 @@ function syncEventsPanelHeight() {
   const calendarRect = els.calendar.getBoundingClientRect();
   const panelRect = els.eventsSidePanel.getBoundingClientRect();
   const availableHeight = Math.floor(calendarRect.bottom - panelRect.top);
-  els.eventsSidePanel.style.maxHeight = `${Math.max(240, availableHeight)}px`;
+  els.eventsSidePanel.style.maxHeight = `${Math.max(420, availableHeight)}px`;
 }
 
 function renderCalendar() {
@@ -1224,28 +1270,45 @@ function renderCalendar() {
     day.setDate(startDate.getDate() + index);
     const dateKey = toDateKey(day);
     const dayEvents = sortEvents(events.filter((event) => event.date === dateKey));
+    const plannedStudyTasks = events.flatMap((event) => {
+      const tasks = event.studyPlan && Array.isArray(event.studyPlan.tasks) ? event.studyPlan.tasks : [];
+      return tasks.filter((task) => task.studyDate === dateKey && task.status !== "studied" && !task.done);
+    });
     const colors = dayEvents.map((event) => getSubjectColor(event.subject));
     const button = document.createElement("button");
     button.type = "button";
     button.className = "calendar-day";
+    if (day.getDay() === 0 || day.getDay() === 6) button.classList.add("is-weekend");
     if (day.getMonth() !== month) button.classList.add("is-muted");
     if (dateKey === getToday()) button.classList.add("is-today");
     if (dateKey === selectedEventDate) button.classList.add("is-selected");
     if (dayEvents.length) {
       button.classList.add("has-events");
       button.style.setProperty("--event-color", colors[0]);
+      if (colors.length > 1) {
+        const gradientStops = colors.map((color, colorIndex) => {
+          const position = Math.round((colorIndex / (colors.length - 1)) * 100);
+          return `color-mix(in srgb, ${color} 19%, var(--panel)) ${position}%`;
+        });
+        button.style.setProperty("--event-gradient", `linear-gradient(135deg, ${gradientStops.join(", ")})`);
+      }
     }
+    if (plannedStudyTasks.length) button.classList.add("has-study-tasks");
     button.dataset.date = dateKey;
+    button.setAttribute("aria-label", `${formatDate(dateKey)}${dayEvents.length ? `, ${dayEvents.length} evento${dayEvents.length === 1 ? "" : "s"}` : ", sin eventos"}`);
 
     const dots = colors
       .slice(0, 4)
       .map((color) => `<span class="day-dot" style="--dot-color: ${color}"></span>`)
       .join("");
     const firstEvent = dayEvents[0] ? `<span class="day-event-name">${escapeHtml(dayEvents[0].name)}</span>` : "";
+    const hasStudyPlan = dayEvents.some((event) => event.studyPlan);
     button.innerHTML = `
       <span class="day-number">${day.getDate()}</span>
       <span class="day-dots">${dots}</span>
       ${firstEvent}
+      ${hasStudyPlan ? '<span class="study-plan-marker">Plan</span>' : ""}
+      ${plannedStudyTasks.length ? `<span class="study-task-marker">Estudio · ${plannedStudyTasks.length}</span>` : ""}
     `;
     button.addEventListener("click", () => {
       selectedEventDate = dateKey;
@@ -1286,17 +1349,34 @@ function renderEventList() {
     const color = getSubjectColor(event.subject);
     item.className = "event-item";
     item.style.setProperty("--event-color", color);
+    const eventDate = new Date(`${event.date}T00:00:00`);
+    const eventDay = String(eventDate.getDate()).padStart(2, "0");
+    const eventMonth = eventDate.toLocaleDateString("es-CL", { month: "short" }).replace(".", "");
     const timeText = event.time ? ` · ${escapeHtml(event.time)}` : "";
     const topicText = event.topic ? `<div class="event-topic-text">${escapeHtml(event.topic)}</div>` : "";
     item.innerHTML = `
-      <div>
-        <strong>${escapeHtml(event.name)}</strong>
-        <div class="event-meta">${escapeHtml(event.subject)} · ${formatDate(event.date)}${timeText}</div>
-        ${topicText}
+      <div class="event-main">
+        <time class="event-date-badge" datetime="${event.date}">
+          <strong>${eventDay}</strong>
+          <span>${escapeHtml(eventMonth)}</span>
+        </time>
+        <div class="event-content">
+          <strong class="event-name">${escapeHtml(event.name)}</strong>
+          <div class="event-meta"><span>${escapeHtml(event.subject)}</span><span>${formatDate(event.date)}${timeText}</span></div>
+          ${topicText}
+        </div>
       </div>
       <div class="event-actions">
+        <button class="icon-button${event.studyPlan ? " has-study-plan" : ""}" type="button" data-event-study="${event.id}" aria-label="Abrir plan de estudio" title="Plan de estudio">▤</button>
         <button class="icon-button" type="button" data-event-edit="${event.id}" aria-label="Editar evento">✎</button>
-        <button class="icon-button danger" type="button" data-event-delete="${event.id}" aria-label="Eliminar evento">-</button>
+        <button class="icon-button danger event-delete-button" type="button" data-event-delete="${event.id}" aria-label="Eliminar evento" title="Eliminar evento">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18"></path>
+            <path d="M8 6V4h8v2"></path>
+            <path d="M19 6l-1 14H6L5 6"></path>
+            <path d="M10 10v6M14 10v6"></path>
+          </svg>
+        </button>
       </div>
     `;
     els.eventsList.appendChild(item);
@@ -1304,6 +1384,9 @@ function renderEventList() {
 
   els.eventsList.querySelectorAll("[data-event-edit]").forEach((button) => {
     button.addEventListener("click", () => startEditEvent(button.dataset.eventEdit));
+  });
+  els.eventsList.querySelectorAll("[data-event-study]").forEach((button) => {
+    button.addEventListener("click", () => openStudyPlan(button.dataset.eventStudy));
   });
   els.eventsList.querySelectorAll("[data-event-delete]").forEach((button) => {
     button.addEventListener("click", () => deleteEvent(button.dataset.eventDelete));
@@ -1355,7 +1438,7 @@ function handleEventSubmit(event) {
   if (editingEventId) {
     const index = events.findIndex((item) => item.id === editingEventId);
     if (index !== -1) {
-      events[index] = { id: editingEventId, name, subject, date, time, topic };
+      events[index] = { ...events[index], id: editingEventId, name, subject, date, time, topic };
     }
     editingEventId = null;
   } else {
@@ -1385,6 +1468,13 @@ function startEditEvent(eventId) {
 
 function deleteEvent(eventId) {
   if (!confirm("Eliminar este evento?")) return;
+  if (studyTimerEventId === eventId) {
+    clearStudyTimerInterval();
+    studyTimerEventId = null;
+    studyTimerRunning = false;
+    studyTimerStarted = false;
+    els.studyTimerFloating.classList.add("is-hidden");
+  }
   events = events.filter((item) => item.id !== eventId);
   saveEvents();
   renderEvents();
@@ -1398,6 +1488,523 @@ function resetEventForm() {
   els.eventForm.reset();
   els.saveEvent.textContent = "Agregar prueba";
   updateEventSubjects();
+}
+
+function getStudyEvent() {
+  return events.find((event) => event.id === activeStudyEventId);
+}
+
+function ensureStudyPlan(event) {
+  if (!event.studyPlan || typeof event.studyPlan !== "object") {
+    event.studyPlan = { tasks: [], materials: [], links: [], notes: "", result: "", reflection: "", timerMinutes: 25, archived: false };
+  }
+  event.studyPlan.tasks = (Array.isArray(event.studyPlan.tasks) ? event.studyPlan.tasks : []).map((task) => ({
+    ...task,
+    status: ["pending", "studied", "review"].includes(task.status) ? task.status : (task.done ? "studied" : "pending"),
+    studyDate: String(task.studyDate || ""),
+  }));
+  event.studyPlan.materials = Array.isArray(event.studyPlan.materials) ? event.studyPlan.materials : [];
+  event.studyPlan.links = Array.isArray(event.studyPlan.links) ? event.studyPlan.links : [];
+  event.studyPlan.notes = String(event.studyPlan.notes || "");
+  event.studyPlan.result = String(event.studyPlan.result || "");
+  event.studyPlan.reflection = String(event.studyPlan.reflection || "");
+  const timerMinutes = Number(event.studyPlan.timerMinutes);
+  event.studyPlan.timerMinutes = Number.isFinite(timerMinutes) && timerMinutes >= 0 ? Math.round(timerMinutes) : 25;
+  const timerRemaining = Number(event.studyPlan.timerRemaining);
+  event.studyPlan.timerRemaining = Number.isFinite(timerRemaining) && timerRemaining >= 0
+    ? Math.round(timerRemaining)
+    : event.studyPlan.timerMinutes * 60;
+  event.studyPlan.timerRunning = Boolean(event.studyPlan.timerRunning);
+  event.studyPlan.timerEndAt = Number.isFinite(Number(event.studyPlan.timerEndAt))
+    ? Math.max(0, Number(event.studyPlan.timerEndAt))
+    : 0;
+  event.studyPlan.timerFinished = Boolean(event.studyPlan.timerFinished);
+  event.studyPlan.timerStarted = Boolean(event.studyPlan.timerStarted || event.studyPlan.timerRunning || event.studyPlan.timerFinished);
+  event.studyPlan.timerNotify = Boolean(event.studyPlan.timerNotify);
+  event.studyPlan.archived = Boolean(event.studyPlan.archived);
+  return event.studyPlan;
+}
+
+function openStudyPlan(eventId) {
+  const event = events.find((item) => item.id === eventId);
+  if (!event) return;
+  if (studyTimerRunning && studyTimerEventId && studyTimerEventId !== eventId) pauseStudyTimer();
+  activeStudyEventId = eventId;
+  ensureStudyPlan(event);
+  loadStudyTimer(event);
+  saveEvents();
+  renderStudyPlan();
+  els.studyPlanModal.classList.add("is-open");
+  els.studyPlanModal.setAttribute("aria-hidden", "false");
+  updateFloatingStudyTimer();
+}
+
+function closeStudyPlan() {
+  els.studyPlanModal.classList.remove("is-open");
+  els.studyPlanModal.setAttribute("aria-hidden", "true");
+  activeStudyEventId = null;
+  updateFloatingStudyTimer();
+  renderEvents();
+}
+
+function renderStudyPlan() {
+  const event = getStudyEvent();
+  if (!event) return;
+  const plan = ensureStudyPlan(event);
+  const subject = subjects.find((item) => item.name === event.subject);
+  const tasksDone = plan.tasks.filter((task) => task.status === "studied").length;
+  const progress = plan.tasks.length ? (tasksDone / plan.tasks.length) * 100 : 0;
+  const progressHue = Math.round(progress * 1.2);
+  const timeText = event.time ? ` · ${event.time}` : "";
+
+  els.studyPlanTitle.textContent = event.name;
+  els.studyPlanMeta.textContent = `${event.subject} · ${formatDate(event.date)}${timeText}`;
+  els.studyPlanStatus.textContent = plan.archived ? "Archivado" : "Activo";
+  els.studyPlanStatus.classList.toggle("is-archived", plan.archived);
+  els.studyProgressLabel.textContent = `${tasksDone} de ${plan.tasks.length} tareas`;
+  els.studyProgressBar.style.width = `${progress}%`;
+  els.studyProgressBar.style.backgroundColor = plan.tasks.length
+    ? `hsl(${progressHue} 64% 42%)`
+    : "var(--muted)";
+  els.studyProgressBar.parentElement.style.backgroundColor = plan.tasks.length
+    ? `hsl(${progressHue} 64% 42% / 0.16)`
+    : "color-mix(in srgb, var(--muted) 16%, transparent)";
+  els.studyTaskInput.disabled = plan.archived;
+  els.studyTaskForm.querySelector("button").disabled = plan.archived;
+  els.studyPlanNotes.value = plan.notes;
+  els.studyPlanNotes.disabled = plan.archived;
+  els.studyPlanResult.value = plan.result;
+  els.studyPlanResult.disabled = plan.archived;
+  els.studyPlanReflection.value = plan.reflection;
+  els.studyPlanReflection.disabled = plan.archived;
+  [els.studyTimerMinus, els.studyTimerMinutes, els.studyTimerPlus, els.studyTimerToggle, els.studyTimerReset, els.studyTimerNotify]
+    .forEach((control) => { control.disabled = plan.archived; });
+  els.studyTimerNotify.checked = plan.timerNotify;
+  if (plan.archived && studyTimerRunning) pauseStudyTimer();
+  els.studyLinkInput.disabled = plan.archived;
+  els.studyLinkForm.querySelector("button").disabled = plan.archived;
+  els.studyFileInput.disabled = plan.archived;
+  els.studyFilePickerLabel.textContent = plan.archived ? "Plan archivado" : "Agregar archivo";
+  els.studyPlanArchive.textContent = plan.archived ? "Reintegrar plan" : "Archivar plan";
+
+  if (!plan.tasks.length) {
+    els.studyTaskList.innerHTML = '<div class="empty">Agrega los temas o pasos que quieres estudiar.</div>';
+  } else {
+    els.studyTaskList.innerHTML = "";
+    plan.tasks.forEach((task) => {
+      const isStudied = task.status === "studied";
+      const needsReview = task.status === "review";
+      const isOverdue = Boolean(task.studyDate && task.studyDate < getToday() && !isStudied);
+      const stateLabel = isStudied ? "Estudiado" : needsReview ? "Necesita repaso" : "Pendiente";
+      const row = document.createElement("div");
+      row.className = `study-task-item${isStudied ? " is-done" : ""}${needsReview ? " needs-review" : ""}${isOverdue ? " is-overdue" : ""}`;
+      row.dataset.studyTaskId = task.id;
+      row.draggable = !plan.archived;
+      row.innerHTML = `
+        <span class="drag-handle" role="button" aria-label="Reordenar tarea"><span></span><span></span><span></span></span>
+        <button class="study-task-state" type="button" data-study-task-state="${task.id}" data-state="${task.status}" ${plan.archived ? "disabled" : ""}>${stateLabel}</button>
+        <span class="study-task-text">${escapeHtml(task.text)}${isOverdue ? '<small class="study-overdue-label">Atrasada</small>' : ""}</span>
+        <label class="study-task-date">Día de estudio<input type="date" data-study-task-date="${task.id}" value="${escapeHtml(task.studyDate)}" ${plan.archived ? "disabled" : ""}></label>
+        <button class="ghost danger study-task-delete" type="button" data-study-task-delete="${task.id}" aria-label="Eliminar tarea" ${plan.archived ? "disabled" : ""}>×</button>
+      `;
+      els.studyTaskList.appendChild(row);
+    });
+  }
+
+  const subjectFiles = subject && Array.isArray(subject.files) ? subject.files : [];
+  plan.materials = plan.materials.filter((fileId) => subjectFiles.some((file) => file.id === fileId));
+  if (!subjectFiles.length) {
+    els.studyMaterialList.innerHTML = '<div class="empty">Esta materia todavía no tiene archivos guardados.</div>';
+  } else {
+    els.studyMaterialList.innerHTML = "";
+    subjectFiles.forEach((file) => {
+      const selected = plan.materials.includes(file.id);
+      const row = document.createElement("div");
+      row.className = "study-material-item";
+      row.innerHTML = `
+        <input type="checkbox" data-study-material="${file.id}" ${selected ? "checked" : ""} ${plan.archived ? "disabled" : ""}>
+        <span class="study-material-name">${escapeHtml(file.displayName || file.name)}</span>
+        <button class="ghost study-material-open" type="button" data-study-material-open="${file.id}">Abrir</button>
+      `;
+      els.studyMaterialList.appendChild(row);
+    });
+  }
+
+  renderStudyLinks(plan);
+}
+
+function addStudyTask(event) {
+  event.preventDefault();
+  const studyEvent = getStudyEvent();
+  const text = els.studyTaskInput.value.trim();
+  if (!studyEvent || !text) return;
+  const plan = ensureStudyPlan(studyEvent);
+  if (plan.archived) return;
+  plan.tasks.push({ id: createId(), text, status: "pending", studyDate: "" });
+  els.studyTaskInput.value = "";
+  saveEvents();
+  renderStudyPlan();
+}
+
+function reorderStudyTasks(sourceId, targetId, position) {
+  const event = getStudyEvent();
+  if (!event || sourceId === targetId) return;
+  const plan = ensureStudyPlan(event);
+  const sourceIndex = plan.tasks.findIndex((task) => task.id === sourceId);
+  const targetIndex = plan.tasks.findIndex((task) => task.id === targetId);
+  if (sourceIndex === -1 || targetIndex === -1) return;
+  const [task] = plan.tasks.splice(sourceIndex, 1);
+  let insertIndex = plan.tasks.findIndex((item) => item.id === targetId);
+  if (position === "after") insertIndex += 1;
+  plan.tasks.splice(insertIndex, 0, task);
+  saveEvents();
+  renderStudyPlan();
+}
+
+function toggleStudyPlanArchive() {
+  const event = getStudyEvent();
+  if (!event) return;
+  const plan = ensureStudyPlan(event);
+  plan.archived = !plan.archived;
+  saveEvents();
+  renderStudyPlan();
+}
+
+function deleteStudyPlan() {
+  const event = getStudyEvent();
+  if (!event || !confirm("Eliminar definitivamente este plan de estudio?")) return;
+  if (studyTimerEventId === event.id) {
+    clearStudyTimerInterval();
+    studyTimerEventId = null;
+    studyTimerRunning = false;
+    studyTimerStarted = false;
+  }
+  delete event.studyPlan;
+  saveEvents();
+  closeStudyPlan();
+}
+
+function formatStudyTimer(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = String(safeSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function updateStudyTimerDisplay() {
+  els.studyTimerDisplay.textContent = formatStudyTimer(studyTimerRemaining);
+  els.studyTimerState.textContent = studyTimerFinished ? "Tiempo terminado" : studyTimerRunning ? "En curso" : "Tiempo";
+  els.studyTimerPlayIcon.classList.toggle("is-hidden", studyTimerRunning);
+  els.studyTimerPauseIcon.classList.toggle("is-hidden", !studyTimerRunning);
+  els.studyTimerToggle.setAttribute("aria-label", studyTimerRunning ? "Pausar temporizador" : "Iniciar temporizador");
+  els.studyTimerToggle.title = studyTimerRunning ? "Pausar" : "Iniciar";
+  const configuredSeconds = Math.max(0, Number(els.studyTimerMinutes.value) || 0) * 60;
+  const elapsedRatio = configuredSeconds > 0
+    ? Math.min(1, Math.max(0, 1 - studyTimerRemaining / configuredSeconds))
+    : 0;
+  els.studyTimerProgress.style.strokeDashoffset = String(326.73 * (1 - elapsedRatio));
+  updateFloatingStudyTimer();
+}
+
+function clearStudyTimerInterval() {
+  if (studyTimerInterval) clearInterval(studyTimerInterval);
+  studyTimerInterval = null;
+}
+
+function getStudyTimerEvent() {
+  return events.find((event) => event.id === studyTimerEventId) || getStudyEvent();
+}
+
+function pauseStudyTimer() {
+  const event = getStudyTimerEvent();
+  const plan = event ? ensureStudyPlan(event) : null;
+  if (plan && studyTimerRunning && plan.timerEndAt) {
+    studyTimerRemaining = Math.max(0, Math.ceil((plan.timerEndAt - Date.now()) / 1000));
+  }
+  clearStudyTimerInterval();
+  studyTimerRunning = false;
+  if (plan) {
+    plan.timerRemaining = studyTimerRemaining;
+    plan.timerRunning = false;
+    plan.timerEndAt = 0;
+    saveEvents();
+  }
+  updateStudyTimerDisplay();
+}
+
+function resetStudyTimer(minutes = null) {
+  clearStudyTimerInterval();
+  const event = getStudyEvent() || getStudyTimerEvent();
+  const plan = event ? ensureStudyPlan(event) : null;
+  const safeMinutes = Math.max(0, Math.round(minutes === null && plan ? plan.timerMinutes : Number(minutes) || 0));
+  if (event) studyTimerEventId = event.id;
+  studyTimerRemaining = safeMinutes * 60;
+  studyTimerRunning = false;
+  studyTimerFinished = false;
+  studyTimerStarted = false;
+  if (plan) {
+    plan.timerMinutes = safeMinutes;
+    plan.timerRemaining = studyTimerRemaining;
+    plan.timerRunning = false;
+    plan.timerEndAt = 0;
+    plan.timerFinished = false;
+    plan.timerStarted = false;
+    saveEvents();
+  }
+  els.studyTimerMinutes.value = safeMinutes;
+  updateStudyTimerDisplay();
+}
+
+function setStudyTimerMinutes(minutes) {
+  const event = getStudyEvent();
+  if (!event) return;
+  const plan = ensureStudyPlan(event);
+  plan.timerMinutes = Math.max(0, Math.round(Number(minutes) || 0));
+  resetStudyTimer(plan.timerMinutes);
+}
+
+function notifyStudyTimerFinished(event) {
+  const plan = ensureStudyPlan(event);
+  if (!plan.timerNotify) return;
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("Tiempo de estudio terminado", { body: event.name });
+  }
+  if (navigator.vibrate) navigator.vibrate([180, 90, 180]);
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.value = 720;
+    gain.gain.setValueAtTime(0.12, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.7);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.7);
+  } catch (error) {
+    console.warn("No fue posible reproducir el aviso del temporizador.", error);
+  }
+}
+
+function finishStudyTimer(shouldNotify = true) {
+  const event = getStudyTimerEvent();
+  clearStudyTimerInterval();
+  studyTimerRemaining = 0;
+  studyTimerRunning = false;
+  studyTimerFinished = true;
+  studyTimerStarted = true;
+  if (event) {
+    const plan = ensureStudyPlan(event);
+    plan.timerRemaining = 0;
+    plan.timerRunning = false;
+    plan.timerEndAt = 0;
+    plan.timerFinished = true;
+    plan.timerStarted = true;
+    saveEvents();
+    if (shouldNotify) notifyStudyTimerFinished(event);
+  }
+  updateStudyTimerDisplay();
+}
+
+function tickStudyTimer() {
+  const event = getStudyTimerEvent();
+  if (!event) return pauseStudyTimer();
+  const plan = ensureStudyPlan(event);
+  studyTimerRemaining = Math.max(0, Math.ceil((plan.timerEndAt - Date.now()) / 1000));
+  if (studyTimerRemaining <= 0) finishStudyTimer();
+  else updateStudyTimerDisplay();
+}
+
+function startStudyTimerInterval() {
+  clearStudyTimerInterval();
+  studyTimerInterval = setInterval(tickStudyTimer, 500);
+}
+
+function loadStudyTimer(event) {
+  clearStudyTimerInterval();
+  const plan = ensureStudyPlan(event);
+  studyTimerEventId = event.id;
+  studyTimerFinished = plan.timerFinished;
+  studyTimerStarted = plan.timerStarted;
+  studyTimerRunning = plan.timerRunning;
+  studyTimerRemaining = plan.timerRemaining;
+  els.studyTimerMinutes.value = plan.timerMinutes;
+  els.studyTimerNotify.checked = plan.timerNotify;
+  if (studyTimerRunning && plan.timerEndAt) {
+    studyTimerRemaining = Math.max(0, Math.ceil((plan.timerEndAt - Date.now()) / 1000));
+    if (studyTimerRemaining <= 0) finishStudyTimer();
+    else startStudyTimerInterval();
+  }
+  updateStudyTimerDisplay();
+}
+
+function toggleStudyTimer() {
+  if (studyTimerRunning) return pauseStudyTimer();
+  const event = getStudyTimerEvent();
+  if (!event) return;
+  const plan = ensureStudyPlan(event);
+  if (studyTimerRemaining <= 0) {
+    studyTimerRemaining = plan.timerMinutes * 60;
+    studyTimerFinished = false;
+  }
+  if (studyTimerRemaining <= 0) return;
+  studyTimerEventId = event.id;
+  studyTimerRunning = true;
+  studyTimerStarted = true;
+  studyTimerFinished = false;
+  plan.timerRemaining = studyTimerRemaining;
+  plan.timerRunning = true;
+  plan.timerStarted = true;
+  plan.timerFinished = false;
+  plan.timerEndAt = Date.now() + studyTimerRemaining * 1000;
+  saveEvents();
+  updateStudyTimerDisplay();
+  startStudyTimerInterval();
+}
+
+function updateFloatingStudyTimer() {
+  const event = events.find((item) => item.id === studyTimerEventId);
+  const modalOpen = els.studyPlanModal.classList.contains("is-open");
+  const shouldShow = Boolean(event && studyTimerStarted && !modalOpen);
+  els.studyTimerFloating.classList.toggle("is-hidden", !shouldShow);
+  if (!shouldShow) return;
+  els.studyTimerFloating.classList.toggle("is-finished", studyTimerFinished);
+  els.studyTimerFloatingEvent.textContent = event.name;
+  els.studyTimerFloatingTime.textContent = studyTimerFinished ? "Tiempo terminado" : formatStudyTimer(studyTimerRemaining);
+  els.studyTimerFloatingPlay.classList.toggle("is-hidden", studyTimerRunning);
+  els.studyTimerFloatingPause.classList.toggle("is-hidden", !studyTimerRunning);
+  els.studyTimerFloatingToggle.setAttribute("aria-label", studyTimerRunning ? "Pausar temporizador" : "Continuar temporizador");
+  els.studyTimerFloatingToggle.title = studyTimerRunning ? "Pausar" : "Continuar";
+}
+
+function restoreStudyTimer() {
+  const event = events.find((item) => {
+    if (!item.studyPlan) return false;
+    const plan = ensureStudyPlan(item);
+    return plan.timerRunning;
+  }) || events.find((item) => item.studyPlan && ensureStudyPlan(item).timerStarted);
+  if (event) loadStudyTimer(event);
+}
+
+function normalizeStudyLink(rawValue) {
+  let value = rawValue.trim();
+  if (!value) return null;
+  if (value.includes("<iframe")) {
+    const documentFragment = new DOMParser().parseFromString(value, "text/html");
+    value = documentFragment.querySelector("iframe")?.getAttribute("src") || "";
+  }
+  try {
+    const url = new URL(value);
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+    const hostname = url.hostname.replace(/^www\./, "").toLowerCase();
+    let youtubeId = "";
+    if (hostname === "youtu.be") youtubeId = url.pathname.split("/").filter(Boolean)[0] || "";
+    if (["youtube.com", "m.youtube.com", "youtube-nocookie.com"].includes(hostname)) {
+      if (url.pathname === "/watch") youtubeId = url.searchParams.get("v") || "";
+      else youtubeId = url.pathname.match(/^\/(?:embed|shorts)\/([^/?]+)/)?.[1] || "";
+    }
+    youtubeId = youtubeId.match(/^[a-zA-Z0-9_-]{6,20}$/)?.[0] || "";
+    return {
+      id: createId(),
+      url: youtubeId ? `https://www.youtube.com/watch?v=${youtubeId}` : url.href,
+      label: youtubeId ? "Video de YouTube" : hostname,
+      embedUrl: youtubeId ? `https://www.youtube-nocookie.com/embed/${youtubeId}` : "",
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function renderStudyLinks(plan) {
+  if (!plan.links.length) {
+    els.studyLinkList.innerHTML = '<div class="empty">No hay enlaces agregados.</div>';
+    return;
+  }
+  els.studyLinkList.innerHTML = "";
+  plan.links.forEach((link) => {
+    const item = document.createElement("article");
+    item.className = "study-link-item";
+    const youtubeId = String(link.embedUrl || "").match(/\/embed\/([a-zA-Z0-9_-]{6,20})/)?.[1] || "";
+    const canEmbedYoutube = youtubeId && location.protocol !== "file:";
+    const media = canEmbedYoutube
+      ? `<div class="study-youtube"><iframe src="${escapeHtml(link.embedUrl)}" title="${escapeHtml(link.label)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`
+      : youtubeId
+        ? `<div class="study-youtube-fallback"><img src="https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg" alt="Vista previa del video"><div><strong>Vista previa de YouTube</strong><span>La reproducción integrada requiere abrir Lectum desde un servidor web.</span><a class="primary" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">Abrir en YouTube</a></div></div>`
+        : "";
+    item.innerHTML = `
+      ${media}
+      <div class="study-link-meta">
+        <a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label || link.url)}</a>
+        <button class="ghost danger" type="button" data-study-link-delete="${link.id}" ${plan.archived ? "disabled" : ""}>Eliminar</button>
+      </div>
+    `;
+    els.studyLinkList.appendChild(item);
+  });
+}
+
+function addStudyLink(event) {
+  event.preventDefault();
+  const studyEvent = getStudyEvent();
+  if (!studyEvent) return;
+  const link = normalizeStudyLink(els.studyLinkInput.value);
+  if (!link) {
+    alert("Ingresa un enlace válido o un código iframe de YouTube.");
+    return;
+  }
+  const plan = ensureStudyPlan(studyEvent);
+  if (plan.archived) return;
+  plan.links.push(link);
+  els.studyLinkInput.value = "";
+  saveEvents();
+  renderStudyPlan();
+}
+
+async function addStudyMaterialFile() {
+  const file = els.studyFileInput.files[0];
+  const event = getStudyEvent();
+  if (!file || !event) return;
+  const subject = subjects.find((item) => item.name === event.subject);
+  if (!subject) {
+    alert("Para agregar archivos, el evento debe estar vinculado a una materia existente.");
+    els.studyFileInput.value = "";
+    return;
+  }
+
+  await filesMigrationPromise;
+  const fileId = createId();
+  els.studyFileInput.disabled = true;
+  els.studyFilePickerLabel.textContent = "Procesando...";
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await setStoredFileData(fileId, reader.result);
+      subject.files = Array.isArray(subject.files) ? subject.files : [];
+      subject.files.unshift({
+        id: fileId,
+        name: file.name,
+        type: file.type,
+        uploadedAt: new Date().toISOString(),
+        displayName: file.name.replace(/\.[^.]+$/, ""),
+      });
+      const plan = ensureStudyPlan(event);
+      if (!plan.materials.includes(fileId)) plan.materials.push(fileId);
+      saveSubjects();
+      saveEvents();
+      els.studyFileInput.value = "";
+      renderStudyPlan();
+    } catch (error) {
+      els.studyFileInput.disabled = false;
+      els.studyFilePickerLabel.textContent = "Agregar archivo";
+      alert("No fue posible guardar el archivo en el navegador.");
+    }
+  };
+  reader.onerror = () => {
+    els.studyFileInput.disabled = false;
+    els.studyFilePickerLabel.textContent = "Agregar archivo";
+    alert("No fue posible leer el archivo seleccionado.");
+  };
+  reader.readAsDataURL(file);
 }
 
 function renderFiles(subject) {
@@ -1501,8 +2108,8 @@ function decodeTextDataUrl(dataUrl) {
   return new TextDecoder("utf-8").decode(bytes);
 }
 
-async function openFilePreview(fileId) {
-  const subject = getActiveSubject();
+async function openFilePreview(fileId, sourceSubject = null) {
+  const subject = sourceSubject || getActiveSubject();
   const file = subject && subject.files.find((item) => item.id === fileId);
   if (!file) return;
   if (!canPreviewFile(file)) {
@@ -2496,6 +3103,158 @@ els.filePreviewClose.addEventListener("click", closeFilePreview);
 els.filePreviewModal.addEventListener("click", (event) => {
   if (event.target === els.filePreviewModal) closeFilePreview();
 });
+els.studyPlanClose.addEventListener("click", closeStudyPlan);
+els.studyPlanModal.addEventListener("click", (event) => {
+  if (event.target === els.studyPlanModal) closeStudyPlan();
+});
+els.studyTaskForm.addEventListener("submit", addStudyTask);
+els.studyTaskList.addEventListener("change", (event) => {
+  const dateInput = event.target.closest("[data-study-task-date]");
+  const studyEvent = getStudyEvent();
+  if (!dateInput || !studyEvent) return;
+  const task = ensureStudyPlan(studyEvent).tasks.find((item) => item.id === dateInput.dataset.studyTaskDate);
+  if (!task) return;
+  task.studyDate = dateInput.value;
+  saveEvents();
+  renderStudyPlan();
+});
+els.studyTaskList.addEventListener("click", (event) => {
+  const stateButton = event.target.closest("[data-study-task-state]");
+  const studyEvent = getStudyEvent();
+  if (stateButton && studyEvent) {
+    const task = ensureStudyPlan(studyEvent).tasks.find((item) => item.id === stateButton.dataset.studyTaskState);
+    if (!task) return;
+    const nextState = { pending: "studied", studied: "review", review: "pending" };
+    task.status = nextState[task.status] || "pending";
+    saveEvents();
+    renderStudyPlan();
+    return;
+  }
+  const button = event.target.closest("[data-study-task-delete]");
+  if (!button || !studyEvent) return;
+  const plan = ensureStudyPlan(studyEvent);
+  plan.tasks = plan.tasks.filter((task) => task.id !== button.dataset.studyTaskDelete);
+  saveEvents();
+  renderStudyPlan();
+});
+els.studyTaskList.addEventListener("pointerdown", (event) => {
+  const handle = event.target.closest(".drag-handle");
+  const row = handle && handle.closest(".study-task-item");
+  if (row) row.dataset.dragReady = "true";
+});
+els.studyTaskList.addEventListener("dragstart", (event) => {
+  const row = event.target.closest(".study-task-item");
+  if (!row || row.dataset.dragReady !== "true") {
+    event.preventDefault();
+    return;
+  }
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", row.dataset.studyTaskId);
+  row.classList.add("is-dragging");
+});
+els.studyTaskList.addEventListener("dragover", (event) => {
+  const row = event.target.closest(".study-task-item");
+  if (!row) return;
+  event.preventDefault();
+  const rect = row.getBoundingClientRect();
+  const isAfter = event.clientY > rect.top + rect.height / 2;
+  row.classList.toggle("is-drag-over-before", !isAfter);
+  row.classList.toggle("is-drag-over-after", isAfter);
+});
+els.studyTaskList.addEventListener("drop", (event) => {
+  const row = event.target.closest(".study-task-item");
+  if (!row) return;
+  event.preventDefault();
+  const sourceId = event.dataTransfer.getData("text/plain");
+  const rect = row.getBoundingClientRect();
+  reorderStudyTasks(sourceId, row.dataset.studyTaskId, event.clientY > rect.top + rect.height / 2 ? "after" : "before");
+});
+els.studyTaskList.addEventListener("dragend", () => {
+  els.studyTaskList.querySelectorAll(".study-task-item").forEach((row) => {
+    row.classList.remove("is-dragging", "is-drag-over-before", "is-drag-over-after");
+    delete row.dataset.dragReady;
+  });
+});
+els.studyMaterialList.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-study-material]");
+  const studyEvent = getStudyEvent();
+  if (!checkbox || !studyEvent) return;
+  const plan = ensureStudyPlan(studyEvent);
+  if (checkbox.checked && !plan.materials.includes(checkbox.dataset.studyMaterial)) {
+    plan.materials.push(checkbox.dataset.studyMaterial);
+  } else if (!checkbox.checked) {
+    plan.materials = plan.materials.filter((fileId) => fileId !== checkbox.dataset.studyMaterial);
+  }
+  saveEvents();
+});
+els.studyMaterialList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-study-material-open]");
+  const studyEvent = getStudyEvent();
+  if (!button || !studyEvent) return;
+  const subject = subjects.find((item) => item.name === studyEvent.subject);
+  if (subject) openFilePreview(button.dataset.studyMaterialOpen, subject);
+});
+els.studyPlanNotes.addEventListener("change", () => {
+  const studyEvent = getStudyEvent();
+  if (!studyEvent) return;
+  ensureStudyPlan(studyEvent).notes = els.studyPlanNotes.value;
+  saveEvents();
+});
+els.studyPlanResult.addEventListener("change", () => {
+  const studyEvent = getStudyEvent();
+  if (!studyEvent) return;
+  ensureStudyPlan(studyEvent).result = els.studyPlanResult.value.trim();
+  saveEvents();
+});
+els.studyPlanReflection.addEventListener("change", () => {
+  const studyEvent = getStudyEvent();
+  if (!studyEvent) return;
+  ensureStudyPlan(studyEvent).reflection = els.studyPlanReflection.value;
+  saveEvents();
+});
+els.studyTimerMinus.addEventListener("click", () => {
+  const event = getStudyEvent();
+  if (!event) return;
+  setStudyTimerMinutes(Math.max(0, ensureStudyPlan(event).timerMinutes - 15));
+});
+els.studyTimerPlus.addEventListener("click", () => {
+  const event = getStudyEvent();
+  if (!event) return;
+  setStudyTimerMinutes(ensureStudyPlan(event).timerMinutes + 15);
+});
+els.studyTimerMinutes.addEventListener("change", () => setStudyTimerMinutes(els.studyTimerMinutes.value));
+els.studyTimerToggle.addEventListener("click", toggleStudyTimer);
+els.studyTimerReset.addEventListener("click", () => resetStudyTimer());
+els.studyTimerNotify.addEventListener("change", async () => {
+  const event = getStudyEvent();
+  if (!event) return;
+  const plan = ensureStudyPlan(event);
+  plan.timerNotify = els.studyTimerNotify.checked;
+  if (plan.timerNotify && "Notification" in window && Notification.permission === "default") {
+    await Notification.requestPermission();
+  }
+  saveEvents();
+});
+els.studyTimerFloatingOpen.addEventListener("click", () => {
+  if (studyTimerEventId) openStudyPlan(studyTimerEventId);
+});
+els.studyTimerFloatingToggle.addEventListener("click", toggleStudyTimer);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && studyTimerRunning) tickStudyTimer();
+});
+els.studyLinkForm.addEventListener("submit", addStudyLink);
+els.studyLinkList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-study-link-delete]");
+  const studyEvent = getStudyEvent();
+  if (!button || !studyEvent) return;
+  const plan = ensureStudyPlan(studyEvent);
+  plan.links = plan.links.filter((link) => link.id !== button.dataset.studyLinkDelete);
+  saveEvents();
+  renderStudyPlan();
+});
+els.studyPlanArchive.addEventListener("click", toggleStudyPlanArchive);
+els.studyPlanDelete.addEventListener("click", deleteStudyPlan);
+els.studyFileInput.addEventListener("change", addStudyMaterialFile);
 els.prevMonth.addEventListener("click", () => {
   calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
   renderEvents();
@@ -2525,3 +3284,4 @@ calculateOverall();
 toggleControlBox();
 renderLinks();
 renderEvents();
+restoreStudyTimer();
